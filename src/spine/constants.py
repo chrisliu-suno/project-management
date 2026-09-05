@@ -1,0 +1,44 @@
+"""Tunable limits and well-known names.
+
+Nothing outside this module hardcodes a size, threshold, filename, or env var.
+"""
+
+from __future__ import annotations
+
+from .model import ReadWhen
+
+FRONTMATTER_DELIMITER = "---"
+DOC_FILE_SUFFIX = ".md"
+
+SPINE_HOME_ENV_VAR = "SPINE_HOME"
+SPINE_SESSION_ID_ENV_VAR = "SPINE_SESSION_ID"
+SPINE_PROJECT_ENV_VAR = "SPINE_PROJECT"
+SPINE_DISABLED_ENV_VAR = "SPINE_DISABLED"
+
+DEFAULT_SPINE_DIR_NAME = "spine"
+REGISTRY_FILE_NAME = "registry.toml"
+GRAPH_DB_FILE_NAME = "graph.sqlite3"
+SESSIONS_DIR_NAME = "sessions"
+PICKS_DB_FILE_NAME = "picks.sqlite3"
+
+PROJECT_SLUG_SEPARATOR = "-"
+DOC_ID_SEPARATOR = ":"
+
+MAX_LINES_PER_READ_WHEN: dict[ReadWhen, int] = {
+    ReadWhen.EVERY_TIME: 400,
+    ReadWhen.IN_AREA: 1200,
+    ReadWhen.RARELY: 4000,
+    ReadWhen.LOOKED_UP: 4000,
+    ReadWhen.LOG: 4000,
+}
+
+INJECTION_LINE_BUDGET = 900
+EVERY_TIME_RESERVED_LINES = 400
+
+MIN_CONFIDENCE_FOR_SILENT_PICK = 0.6
+MIN_CONFIDENCE_FOR_AUTO_ATTACH = 0.5
+EXACT_MATCH_CONFIDENCE = 1.0
+NO_MATCH_CONFIDENCE = 0.0
+
+MODEL_INFERRED_LINK_CONFIDENCE = 0.7
+TEXTUAL_LINK_CONFIDENCE = 1.0
