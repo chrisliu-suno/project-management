@@ -15,6 +15,7 @@ from . import __version__
 SubcommandRegistrar = Callable[[argparse._SubParsersAction], None]
 
 EXIT_OK = 0
+EXIT_ERROR = 1
 EXIT_USAGE = 2
 
 
