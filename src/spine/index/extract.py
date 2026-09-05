@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..constants import TEXTUAL_LINK_CONFIDENCE
+from ..constants import ENTRY_ANCHOR_SEPARATOR
+from ..docs.entries import slugify_heading
 from ..model import Doc, DocKind, Link, LinkType
 from .backlinks import deduplicate_links
 
@@ -65,19 +67,22 @@ class FileNameIndex:
 
     doc_ids_by_file_name: dict[str, str]
     mention_pattern: re.Pattern[str] | None
+    entry_ids: frozenset[str] = frozenset()
 
 
 def build_file_name_index(*, corpus: tuple[Doc, ...]) -> FileNameIndex:
     """Index a corpus by file name so textual references resolve to doc ids."""
-    doc_ids_by_file_name = {doc.path.name: doc.doc_id for doc in corpus}
+    doc_ids_by_file_name = {doc.path.name: doc.doc_id for doc in corpus if not doc.is_entry}
+    entry_ids = frozenset(doc.doc_id for doc in corpus if doc.is_entry)
     if not doc_ids_by_file_name:
-        return FileNameIndex(doc_ids_by_file_name={}, mention_pattern=None)
+        return FileNameIndex(doc_ids_by_file_name={}, mention_pattern=None, entry_ids=entry_ids)
     alternatives = "|".join(
         re.escape(name) for name in sorted(doc_ids_by_file_name, key=len, reverse=True)
     )
     return FileNameIndex(
         doc_ids_by_file_name=doc_ids_by_file_name,
         mention_pattern=re.compile(BARE_MENTION_TEMPLATE.format(alternatives=alternatives)),
+        entry_ids=entry_ids,
     )
 
 
@@ -91,10 +96,15 @@ def split_sentences(*, body: str) -> tuple[str, ...]:
 
 
 def _resolve_file_name(*, target: str, index: FileNameIndex) -> str | None:
+    """The doc id a link target names, preferring a log entry when anchored."""
     if EXTERNAL_TARGET_PATTERN.match(target):
         return None
-    file_name = Path(target.split(ANCHOR_SEPARATOR, maxsplit=1)[0]).name
-    return index.doc_ids_by_file_name.get(file_name)
+    path_part, _, anchor = target.partition(ANCHOR_SEPARATOR)
+    file_doc_id = index.doc_ids_by_file_name.get(Path(path_part).name)
+    if file_doc_id is None or not anchor:
+        return file_doc_id
+    entry_id = f"{file_doc_id}{ENTRY_ANCHOR_SEPARATOR}{slugify_heading(heading=anchor)}"
+    return entry_id if entry_id in index.entry_ids else file_doc_id
 
 
 def markdown_link_doc_ids(*, sentence: str, index: FileNameIndex) -> tuple[str, ...]:

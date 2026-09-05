@@ -7,9 +7,12 @@ import sys
 from pathlib import Path
 
 from ..cli import EXIT_OK, EXIT_USAGE
-from ..constants import DOC_FILE_SUFFIX, DOC_ID_SEPARATOR, FRONTMATTER_DELIMITER
-from ..model import DEFAULT_READ_WHEN, Doc, DocKind, Link, ReadWhen
+from ..constants import DOC_FILE_SUFFIX
+from ..docs import FilesystemDocSource
+from ..docs.entries import with_entries
+from ..model import Doc, Link, Project
 from .backlinks import backlinks, deduplicate_links, is_citation, sweep_targets
+from .entry_links import entry_supersede_links
 from .extract import TextualLinkExtractor
 from .store import SqliteGraphStore
 
@@ -28,75 +31,10 @@ __all__ = [
 
 EXIT_EMPTY_CORPUS = 1
 
-FRONTMATTER_KIND_KEY = "kind"
-FRONTMATTER_READ_WHEN_KEY = "read_when"
-FRONTMATTER_TITLE_KEY = "title"
-FRONTMATTER_AREA_KEY = "area"
-FRONTMATTER_GENERATED_KEY = "generated"
-FRONTMATTER_PAIR_SEPARATOR = ":"
-FRONTMATTER_NULL_LITERAL = "null"
-FRONTMATTER_TRUE_LITERAL = "true"
-FALLBACK_DOC_KIND = DocKind.GENERATED
-
-
-def _frontmatter_pairs(*, lines: list[str]) -> dict[str, str]:
-    pairs: dict[str, str] = {}
-    for line in lines:
-        key, separator, value = line.partition(FRONTMATTER_PAIR_SEPARATOR)
-        cleaned = value.strip()
-        if separator and cleaned and cleaned != FRONTMATTER_NULL_LITERAL:
-            pairs[key.strip()] = cleaned
-    return pairs
-
-
-def split_frontmatter(*, text: str) -> tuple[dict[str, str], str]:
-    """Split a markdown file into its frontmatter pairs and its body."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != FRONTMATTER_DELIMITER:
-        return {}, text
-    for offset, line in enumerate(lines[1:], start=1):
-        if line.strip() == FRONTMATTER_DELIMITER:
-            return _frontmatter_pairs(lines=lines[1:offset]), "\n".join(lines[offset + 1 :])
-    return {}, text
-
-
-def _doc_kind(*, raw: str | None) -> DocKind:
-    try:
-        return DocKind(raw)
-    except ValueError:
-        return FALLBACK_DOC_KIND
-
-
-def _read_when(*, raw: str | None, kind: DocKind) -> ReadWhen:
-    try:
-        return ReadWhen(raw)
-    except ValueError:
-        return DEFAULT_READ_WHEN[kind]
-
-
-def _doc_from_file(*, path: Path, project_slug: str) -> Doc:
-    pairs, body = split_frontmatter(text=path.read_text(encoding="utf-8"))
-    kind = _doc_kind(raw=pairs.get(FRONTMATTER_KIND_KEY))
-    return Doc(
-        doc_id=f"{project_slug}{DOC_ID_SEPARATOR}{path.stem}",
-        path=path,
-        kind=kind,
-        read_when=_read_when(raw=pairs.get(FRONTMATTER_READ_WHEN_KEY), kind=kind),
-        title=pairs.get(FRONTMATTER_TITLE_KEY, path.stem),
-        body=body,
-        project_slug=project_slug,
-        area=pairs.get(FRONTMATTER_AREA_KEY),
-        frontmatter=dict(pairs),
-        is_generated=pairs.get(FRONTMATTER_GENERATED_KEY, "").lower() == FRONTMATTER_TRUE_LITERAL,
-    )
-
-
 def load_corpus(*, docs_dir: Path, project_slug: str) -> tuple[Doc, ...]:
-    """Read a directory of markdown into Docs, standing alone from the loader module."""
-    return tuple(
-        _doc_from_file(path=path, project_slug=project_slug)
-        for path in sorted(docs_dir.glob(f"*{DOC_FILE_SUFFIX}"))
-    )
+    """Every document in a corpus directory, plus an entry node per log section."""
+    project = Project(slug=project_slug, name=project_slug, docs_dir=docs_dir)
+    return with_entries(docs=FilesystemDocSource().load_all(project=project))
 
 
 def build_links(*, docs: tuple[Doc, ...]) -> tuple[Link, ...]:
@@ -105,6 +43,7 @@ def build_links(*, docs: tuple[Doc, ...]) -> tuple[Link, ...]:
     found: list[Link] = []
     for doc in docs:
         found.extend(extractor.extract(doc=doc, corpus=docs))
+    found.extend(entry_supersede_links(corpus=docs))
     return deduplicate_links(links=tuple(found))
 
 

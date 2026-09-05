@@ -7,8 +7,10 @@ area: uplink
 
 # Area design — the allocator
 
-The allocator keeps an interval tree per station. A request is a half-open interval; granting it
+The allocator keeps an interval tree per station. A request is a closed interval; granting it
 inserts, releasing removes. Conflicts are detected on insert rather than on a periodic sweep.
+
+Interval bounds follow [the closed-interval decision](decisions.md#windows-are-closed-intervals).
 
 ## What lost
 

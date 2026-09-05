@@ -107,10 +107,16 @@ class Doc:
     lifecycle: Lifecycle | None = None
     frontmatter: dict[str, object] = field(default_factory=dict)
     is_generated: bool = False
+    parent_doc_id: str | None = None
 
     @property
     def line_count(self) -> int:
         return self.body.count("\n") + 1
+
+    @property
+    def is_entry(self) -> bool:
+        """An addressable section of a log, rather than a whole file."""
+        return self.parent_doc_id is not None
 
 
 @dataclass(frozen=True, slots=True)

@@ -25,7 +25,7 @@ FIXTURE_CORPUS_DIR = Path(__file__).parent.parent / "fixtures" / "corpus-alpha"
 PROJECT_SLUG = "alpha"
 OTHER_PROJECT_SLUG = "beta"
 ORPHAN_DOC_STEM = "audit-legacy-sweep"
-EXPECTED_FIXTURE_LINK_COUNT = 18
+EXPECTED_FIXTURE_LINK_COUNT = 23
 CORPUS_DIR_STAND_IN = Path("/corpus")
 
 
@@ -356,7 +356,9 @@ def test_two_projects_stay_separate_in_one_database(
         PROJECT_SLUG
     }
     assert len(store.docs_for_project(project_slug=OTHER_PROJECT_SLUG)) == len(other_docs)
-    assert len(store.orphans(project_slug=OTHER_PROJECT_SLUG)) == len(other_docs)
+    assert len(store.orphans(project_slug=OTHER_PROJECT_SLUG)) == len(
+        [doc for doc in other_docs if not doc.is_entry]
+    )
     assert len(store.orphans(project_slug=PROJECT_SLUG)) == 1
 
 
@@ -375,7 +377,9 @@ def test_reindexing_one_project_leaves_the_other_alone(
 
 def test_fixture_corpus_extraction_is_stable(fixture_docs: tuple[Doc, ...]) -> None:
     links = build_links(docs=fixture_docs)
-    assert len(fixture_docs) == len(list(FIXTURE_CORPUS_DIR.glob(f"*{DOC_FILE_SUFFIX}")))
+    files = list(FIXTURE_CORPUS_DIR.glob(f"*{DOC_FILE_SUFFIX}"))
+    assert len([doc for doc in fixture_docs if not doc.is_entry]) == len(files)
+    assert any(doc.is_entry for doc in fixture_docs)
     assert len(links) == EXPECTED_FIXTURE_LINK_COUNT
     assert all(link.src_id != link.dst_id for link in links)
     assert all(link.confidence == TEXTUAL_LINK_CONFIDENCE for link in links)
