@@ -24,6 +24,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         lifecycle TEXT,
         frontmatter TEXT NOT NULL,
         is_generated INTEGER NOT NULL,
+    parent_doc_id TEXT,
         PRIMARY KEY (project_slug, doc_id)
     )
     """,
@@ -48,10 +49,10 @@ DELETE_PROJECT_LINKS_SQL = "DELETE FROM links WHERE project_slug = :project_slug
 INSERT_DOC_SQL = """
 INSERT INTO docs (
     project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
-    frontmatter, is_generated
+    frontmatter, is_generated, parent_doc_id
 ) VALUES (
     :project_slug, :doc_id, :path, :kind, :read_when, :title, :body, :area, :lifecycle,
-    :frontmatter, :is_generated
+    :frontmatter, :is_generated, :parent_doc_id
 )
 """
 
@@ -62,7 +63,7 @@ VALUES (:project_slug, :src_id, :dst_id, :link_type, :confidence, :evidence)
 
 SELECT_PROJECT_DOCS_SQL = """
 SELECT project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
-       frontmatter, is_generated
+       frontmatter, is_generated, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
 ORDER BY doc_id
@@ -70,9 +71,10 @@ ORDER BY doc_id
 
 SELECT_ORPHAN_DOCS_SQL = """
 SELECT project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
-       frontmatter, is_generated
+       frontmatter, is_generated, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
+  AND parent_doc_id IS NULL
   AND doc_id NOT IN (
       SELECT dst_id FROM links
       WHERE project_slug = :project_slug AND link_type != :cited_by
@@ -111,6 +113,7 @@ def _doc_row(*, doc: Doc, project_slug: str) -> dict[str, object]:
         "lifecycle": str(doc.lifecycle) if doc.lifecycle is not None else None,
         "frontmatter": json.dumps(doc.frontmatter, default=str),
         "is_generated": TRUE_AS_INTEGER if doc.is_generated else FALSE_AS_INTEGER,
+        "parent_doc_id": doc.parent_doc_id,
     }
 
 
@@ -139,6 +142,7 @@ def _doc_from_row(*, row: sqlite3.Row) -> Doc:
         lifecycle=Lifecycle(lifecycle) if lifecycle else None,
         frontmatter=json.loads(row["frontmatter"]),
         is_generated=bool(row["is_generated"]),
+        parent_doc_id=row["parent_doc_id"],
     )
 
 
