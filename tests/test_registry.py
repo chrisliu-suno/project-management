@@ -201,7 +201,7 @@ def test_opening_prompt_mention_is_a_signal(spine_home: Path) -> None:
     assert matches[0].evidence == ('prompt mentions "Orbital Relay"',)
 
 
-def test_stacked_signals_accumulate_and_cap_at_exact_match(spine_home: Path) -> None:
+def test_stacked_signals_stay_below_exact_match(spine_home: Path) -> None:
     resolver = _resolver_with(projects=(_relay_project(root=spine_home),))
     matches = resolver.resolve(
         cwd=spine_home / "relay-uplink",
@@ -209,8 +209,23 @@ def test_stacked_signals_accumulate_and_cap_at_exact_match(spine_home: Path) -> 
         repo=RELAY_REPO,
         opening_prompt=RELAY_SLUG,
     )
-    assert matches[0].confidence == EXACT_MATCH_CONFIDENCE
+    assert matches[0].confidence < EXACT_MATCH_CONFIDENCE
     assert len(matches[0].evidence) == 4
+
+
+def test_more_signals_always_rank_higher(spine_home: Path) -> None:
+    resolver = _resolver_with(projects=(_relay_project(root=spine_home),))
+    two_signals = resolver.resolve(cwd=spine_home / "relay-uplink", branch=RELAY_BRANCH_PREFIX)
+    three_signals = resolver.resolve(
+        cwd=spine_home / "relay-uplink", branch=RELAY_BRANCH_PREFIX, repo=RELAY_REPO
+    )
+    assert three_signals[0].confidence > two_signals[0].confidence
+
+
+def test_a_single_signal_keeps_its_own_weight(spine_home: Path) -> None:
+    resolver = _resolver_with(projects=(_relay_project(root=spine_home),))
+    matches = resolver.resolve(cwd=spine_home / "unrelated", repo=RELAY_REPO)
+    assert matches[0].confidence == REPO_MATCH_CONFIDENCE
 
 
 def test_two_projects_can_match_the_same_session(spine_home: Path) -> None:

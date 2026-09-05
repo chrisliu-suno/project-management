@@ -62,7 +62,7 @@ def _score_project(
         *_branch_signals(project=project, branch=branch),
         *_prompt_signals(project=project, opening_prompt=opening_prompt),
     ]
-    confidence = min(sum(weight for weight, _ in signals), EXACT_MATCH_CONFIDENCE)
+    confidence = combine_signal_weights(weights=tuple(weight for weight, _ in signals))
     if confidence <= NO_MATCH_CONFIDENCE:
         return None
     return ProjectMatch(
@@ -70,6 +70,18 @@ def _score_project(
         confidence=confidence,
         evidence=tuple(description for _, description in signals),
     )
+
+
+def combine_signal_weights(*, weights: tuple[float, ...]) -> float:
+    """Combine independent signal weights so more evidence always ranks higher.
+
+    Summing then clamping made three matching signals indistinguishable from two
+    that already reached the ceiling.
+    """
+    remaining_doubt = EXACT_MATCH_CONFIDENCE
+    for weight in weights:
+        remaining_doubt *= EXACT_MATCH_CONFIDENCE - weight
+    return EXACT_MATCH_CONFIDENCE - remaining_doubt
 
 
 def _repo_signals(*, project: Project, repo: str | None) -> list[Signal]:

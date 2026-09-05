@@ -30,12 +30,16 @@ DEPENDS_ON_PATTERN = re.compile(r"\bblocked\s+by\b|\bdepends\s+on\b", re.IGNOREC
 IMPLEMENTS_PATTERN = re.compile(r"\bimplements?\b", re.IGNORECASE)
 CLASSIFIES_PATTERN = re.compile(r"\bclassif(?:ies|ied|y)\b", re.IGNORECASE)
 CONSTRAINS_PATTERN = re.compile(r"\bconstrains?\b", re.IGNORECASE)
+RELEASED_BY_PATTERN = re.compile(r"\breleased\s+by\b", re.IGNORECASE)
+COVERAGE_IN_PATTERN = re.compile(r"\bcoverage\s+(?:in|for)\b", re.IGNORECASE)
 
 PhrasingRules = tuple[tuple[re.Pattern[str], LinkType], ...]
 
 INVERSE_PHRASING_RULES: PhrasingRules = (
     (SUPERSEDED_BY_PATTERN, LinkType.SUPERSEDES),
     (CITED_BY_PATTERN, LinkType.MENTIONS),
+    (RELEASED_BY_PATTERN, LinkType.RAMPS),
+    (COVERAGE_IN_PATTERN, LinkType.VERIFIES),
 )
 
 FORWARD_PHRASING_RULES: PhrasingRules = ((SUPERSEDES_PATTERN, LinkType.SUPERSEDES),)
