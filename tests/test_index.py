@@ -91,6 +91,24 @@ def test_external_url_is_not_a_link() -> None:
     assert extract_from(doc=source, corpus=(source, target)) == ()
 
 
+def test_relative_paths_and_anchors_resolve_to_one_link() -> None:
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="brief",
+        body="See [a](./design-scheduler.md#what-lost) and [b](../uplink/design-scheduler.md).",
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert [link.dst_id for link in links] == [target.doc_id]
+
+
+def test_a_file_name_that_merely_contains_another_is_not_a_mention() -> None:
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="brief", body="See legacy-design-scheduler.md and design-scheduler.markdown."
+    )
+    assert extract_from(doc=source, corpus=(source, target)) == ()
+
+
 @pytest.mark.parametrize(
     ("kind", "sentence", "expected"),
     [
