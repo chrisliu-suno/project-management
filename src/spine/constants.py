@@ -5,7 +5,7 @@ Nothing outside this module hardcodes a size, threshold, filename, or env var.
 
 from __future__ import annotations
 
-from .model import ReadWhen
+from .model import DocKind, ReadWhen
 
 FRONTMATTER_DELIMITER = "---"
 DOC_FILE_SUFFIX = ".md"
@@ -56,3 +56,52 @@ REPO_MATCH_CONFIDENCE = 0.6
 BRANCH_PREFIX_MATCH_CONFIDENCE = 0.5
 PATH_GLOB_MATCH_CONFIDENCE = 0.4
 PROMPT_MENTION_CONFIDENCE = 0.3
+DOC_TEXT_ENCODING = "utf-8"
+
+FRONTMATTER_KEY_SEPARATOR = ":"
+FRONTMATTER_COMMENT_PREFIX = "#"
+FRONTMATTER_NULL_LITERAL = "null"
+FRONTMATTER_TRUE_LITERAL = "true"
+FRONTMATTER_FALSE_LITERAL = "false"
+FRONTMATTER_LIST_OPEN = "["
+FRONTMATTER_LIST_CLOSE = "]"
+FRONTMATTER_LIST_ITEM_SEPARATOR = ","
+FRONTMATTER_QUOTE_CHARACTERS = ('"', "'")
+
+DOC_KIND_KEY = "kind"
+DOC_READ_WHEN_KEY = "read_when"
+DOC_TITLE_KEY = "title"
+DOC_AREA_KEY = "area"
+DOC_LIFECYCLE_KEY = "lifecycle"
+DOC_GENERATED_KEYS = ("generated", "is_generated")
+
+MARKDOWN_H1_PREFIX = "# "
+FILENAME_WORD_SEPARATOR = "-"
+DOC_KIND_WORD_SEPARATOR = "_"
+
+DOC_KIND_BY_FILENAME_PREFIX: dict[str, DocKind] = {
+    "brief": DocKind.BRIEF,
+    "rules": DocKind.PROJECT_RULES,
+    "classification": DocKind.CLASSIFICATION,
+    "milestone": DocKind.MILESTONE,
+    "design": DocKind.AREA_DESIGN,
+    "rollout": DocKind.ROLLOUT,
+    "test-coverage": DocKind.TEST_COVERAGE,
+    "decisions": DocKind.DECISION_LOG,
+    "decision-log": DocKind.DECISION_LOG,
+    "open-questions": DocKind.OPEN_QUESTIONS,
+}
+FALLBACK_DOC_KIND = DocKind.GENERATED
+
+DOCS_COMMAND_NAME = "docs"
+DOCS_LIST_ACTION = "list"
+DOCS_CHECK_ACTION = "check"
+DOCS_ACTION_DEST = "docs_action"
+DOCS_DIR_OPTION = "--dir"
+DOCS_DIR_DEST = "docs_dir"
+
+DOCS_MISSING_DIR_MESSAGE = "no corpus directory at {docs_dir}"
+DOCS_LIST_ROW_FORMAT = "{doc_id}\t{kind}\t{read_when}\t{line_count}\t{title}"
+DOCS_BREACH_ROW_FORMAT = "{doc_id}\t{read_when}\t{line_count}/{cap_lines} lines\t+{excess_lines}"
+
+EXIT_CAP_BREACH = 1
