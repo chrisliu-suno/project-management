@@ -13,6 +13,7 @@ from .resolve import SignalResolver
 from .store import RegistryError, TomlProjectRegistry
 
 __all__ = [
+    "load_registry",
     "AUTO_ATTACH_MARKER",
     "RegistryError",
     "SignalResolver",
@@ -123,3 +124,8 @@ def _print_help(*, parser: argparse.ArgumentParser) -> int:
 def _report_error(*, error: Exception) -> int:
     print(str(error), file=sys.stderr)
     return EXIT_ERROR
+
+
+def load_registry() -> TomlProjectRegistry:
+    """The project registry at its configured location."""
+    return TomlProjectRegistry()
