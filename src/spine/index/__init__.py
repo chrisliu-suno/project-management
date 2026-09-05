@@ -14,6 +14,7 @@ from .extract import TextualLinkExtractor
 from .store import SqliteGraphStore
 
 __all__ = [
+    "open_graph_store",
     "SqliteGraphStore",
     "TextualLinkExtractor",
     "backlinks",
@@ -154,3 +155,8 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     sweep = verbs.add_parser("sweep", help="List docs to update if a doc were superseded.")
     sweep.add_argument("--doc", required=True, help="Doc id being superseded.")
     sweep.set_defaults(handler=_handle_sweep)
+
+
+def open_graph_store() -> SqliteGraphStore:
+    """The graph store at its configured location."""
+    return SqliteGraphStore()
