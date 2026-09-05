@@ -5,7 +5,7 @@ Nothing outside this module hardcodes a size, threshold, filename, or env var.
 
 from __future__ import annotations
 
-from .model import DocKind, ReadWhen
+from .model import DocKind, LinkType, ReadWhen
 
 FRONTMATTER_DELIMITER = "---"
 DOC_FILE_SUFFIX = ".md"
@@ -105,3 +105,16 @@ DOCS_LIST_ROW_FORMAT = "{doc_id}\t{kind}\t{read_when}\t{line_count}\t{title}"
 DOCS_BREACH_ROW_FORMAT = "{doc_id}\t{read_when}\t{line_count}/{cap_lines} lines\t+{excess_lines}"
 
 EXIT_CAP_BREACH = 1
+CITATION_LINK_TYPES: frozenset[LinkType] = frozenset(
+    {
+        LinkType.BLOCKS,
+        LinkType.CLASSIFIES,
+        LinkType.CONSTRAINS,
+        LinkType.DEPENDS_ON,
+        LinkType.DERIVED_FROM,
+        LinkType.IMPLEMENTS,
+        LinkType.MENTIONS,
+        LinkType.RAMPS,
+        LinkType.VERIFIES,
+    }
+)
