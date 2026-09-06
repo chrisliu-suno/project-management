@@ -375,12 +375,23 @@ def test_ranking_prefers_the_matching_area() -> None:
     assert ranked[0].doc_id == "z-uplink"
 
 
-def test_an_area_matches_only_when_all_of_its_terms_appear() -> None:
+def test_a_partly_named_area_scores_below_a_fully_named_one() -> None:
     partly_named = make_doc(doc_id="partial", read_when=ReadWhen.IN_AREA, area="uplink scheduler")
     fully_named = make_doc(doc_id="full", read_when=ReadWhen.IN_AREA, area="uplink")
     task_terms = terms_in(text=TASK_CONTEXT)
-    assert area_score(doc=partly_named, task_terms=task_terms) == 0.0
-    assert area_score(doc=fully_named, task_terms=task_terms) > 0.0
+    partial = area_score(doc=partly_named, task_terms=task_terms)
+    full = area_score(doc=fully_named, task_terms=task_terms)
+    assert 0.0 < partial < full
+
+
+def test_an_area_sharing_no_terms_scores_zero() -> None:
+    unrelated = make_doc(doc_id="unrelated", read_when=ReadWhen.IN_AREA, area="billing invoices")
+    assert area_score(doc=unrelated, task_terms=terms_in(text=TASK_CONTEXT)) == 0.0
+
+
+def test_a_plural_area_term_matches_a_singular_task_term() -> None:
+    plural_area = make_doc(doc_id="plural", read_when=ReadWhen.IN_AREA, area="resolvers")
+    assert area_score(doc=plural_area, task_terms=terms_in(text="fix the resolver")) > 0.0
 
 
 def test_ranking_reads_headings_out_of_the_body() -> None:
