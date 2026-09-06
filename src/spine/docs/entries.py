@@ -15,7 +15,7 @@ from ..constants import (
     ENTRY_SLUG_SEPARATOR,
     SEGMENTED_DOC_KINDS,
 )
-from ..model import Doc
+from ..model import Doc, ReadWhen
 
 
 def slugify_heading(*, heading: str) -> str:
@@ -61,6 +61,7 @@ def split_into_entries(*, doc: Doc) -> tuple[Doc, ...]:
             title=heading,
             body="\n".join(lines[start:end]).strip(),
             parent_doc_id=doc.doc_id,
+            read_when=ReadWhen.LOG,
         )
         for heading, start, end in _heading_spans(lines=lines)
     ]
