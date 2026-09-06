@@ -18,19 +18,24 @@ def apply_cached_classifications(
     """The corpus with cached kinds filled in where the document declared none."""
     from . import needs_classification
 
+    from .reconcile import reconcile
+
     active_cache = cache if cache is not None else ClassificationCache()
-    applied: list[Doc] = []
-    for doc in docs:
-        verdict = active_cache.get(body=doc.body) if needs_classification(doc=doc) else None
-        if verdict is None:
-            applied.append(doc)
-            continue
-        applied.append(
-            replace(
-                doc,
-                kind=verdict.kind,
-                read_when=verdict.read_when,
-                area=verdict.area if verdict.area else doc.area,
-            )
+    cached = {
+        doc.doc_id: verdict
+        for doc in docs
+        if needs_classification(doc=doc)
+        and (verdict := active_cache.get(body=doc.body)) is not None
+    }
+    reconciled = reconcile(verdicts=cached)
+    return tuple(
+        replace(
+            doc,
+            kind=reconciled[doc.doc_id].kind,
+            read_when=reconciled[doc.doc_id].read_when,
+            area=reconciled[doc.doc_id].area or doc.area,
         )
-    return tuple(applied)
+        if doc.doc_id in reconciled
+        else doc
+        for doc in docs
+    )
