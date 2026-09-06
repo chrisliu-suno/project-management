@@ -36,6 +36,14 @@ def system_prompt() -> str:
         "- Set area to an empty string when the document is project-wide.\n"
         "- confidence is 0 to 1: how sure you are of the kind. Use a low value when "
         "the document could plausibly be two kinds.\n"
+        "- Exactly one document in a project is the brief. Mark a document brief only "
+        "if it is the single best starting point for someone new to the whole project. "
+        "A brief is always every_time. If nothing in this batch is that, use no brief.\n"
+        "- A document that hands work between sessions or people — handoffs, status "
+        "reports, sign-offs, worklogs, leadership summaries — is generated: its content "
+        "is derived from commits, PRs, and tickets rather than authored. Never milestone.\n"
+        "- classification means a lookup table an agent reads a value out of. A "
+        "requirements or product document is not a classification, however structured.\n"
         "- Classify every document you are given, keyed by the doc_id supplied."
     )
 

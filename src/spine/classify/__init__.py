@@ -22,6 +22,7 @@ from .client import (
     ClassifierUnavailableError,
 )
 from .prompt import batch_prompt, system_prompt
+from .reconcile import reconcile
 from .schema import classification_schema
 
 __all__ = [
@@ -31,8 +32,10 @@ __all__ = [
     "ClassifierRefusedError",
     "ClassifierUnavailableError",
     "batch_prompt",
+    "brief_health",
     "classification_schema",
     "classify_corpus",
+    "reconcile",
     "needs_classification",
     "register_subcommand",
     "system_prompt",
@@ -99,10 +102,22 @@ def classify_corpus(
                 continue
             cache.put(body=source.body, classification=verdict)
             verdicts[verdict.doc_id] = verdict
+    reconciled = reconcile(verdicts=verdicts)
     return tuple(
-        _applied(doc=doc, verdict=verdicts[doc.doc_id]) if doc.doc_id in verdicts else doc
+        _applied(doc=doc, verdict=reconciled[doc.doc_id]) if doc.doc_id in reconciled else doc
         for doc in docs
     )
+
+
+
+def brief_health(*, docs: tuple[Doc, ...]) -> str | None:
+    """A warning when the corpus has no brief, or more than one survived reconciliation."""
+    briefs = [doc.doc_id for doc in docs if doc.kind is DocKind.BRIEF and not doc.is_entry]
+    if not briefs:
+        return "no brief: nothing in this corpus is the starting point for the whole project"
+    if len(briefs) > 1:
+        return f"{len(briefs)} documents claim to be the brief: {', '.join(sorted(briefs))}"
+    return None
 
 
 def _handle_classify(args: argparse.Namespace) -> int:
@@ -121,6 +136,9 @@ def _handle_classify(args: argparse.Namespace) -> int:
         return EXIT_CLASSIFIER_UNAVAILABLE
     for doc in classified:
         print(FIELD_SEPARATOR.join((doc.doc_id, str(doc.kind), str(doc.read_when))))
+    warning = brief_health(docs=classified)
+    if warning is not None:
+        print(warning, file=sys.stderr)
     return EXIT_OK
 
 

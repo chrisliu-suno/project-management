@@ -80,3 +80,11 @@ def test_with_entries_keeps_originals_and_appends_entries() -> None:
     assert expanded[0] is log
     assert design in expanded
     assert len([doc for doc in expanded if doc.is_entry]) == 2
+
+
+def test_entries_are_always_in_the_log_group() -> None:
+    log = _doc(kind=DocKind.DECISION_LOG, body=LOG_BODY)
+    log.read_when = ReadWhen.IN_AREA
+    entries = split_into_entries(doc=log)
+    assert entries
+    assert all(entry.read_when is ReadWhen.LOG for entry in entries)
