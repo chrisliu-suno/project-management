@@ -17,6 +17,8 @@ from ..constants import (
 )
 from ..model import Doc
 
+PLURAL_TERM_SUFFIX = "s"
+
 _TERM_PATTERN = re.compile(RANKING_TERM_PATTERN)
 
 
@@ -32,9 +34,17 @@ def no_neighbours(*, doc_id: str) -> frozenset[str]:
 
 
 def terms_in(*, text: str) -> frozenset[str]:
-    """Lowercased word terms long enough to carry meaning."""
+    """Lowercased word terms long enough to carry meaning, singularized.
+
+    Singularizing lets a task saying "resolver" match an area named
+    "access-resolvers".
+    """
     found = _TERM_PATTERN.findall(text.lower())
-    return frozenset(term for term in found if len(term) >= MIN_RANKING_TERM_LENGTH)
+    return frozenset(
+        term.removesuffix(PLURAL_TERM_SUFFIX)
+        for term in found
+        if len(term) >= MIN_RANKING_TERM_LENGTH
+    )
 
 
 def heading_terms(*, doc: Doc) -> frozenset[str]:
@@ -46,13 +56,17 @@ def heading_terms(*, doc: Doc) -> frozenset[str]:
 
 
 def area_score(*, doc: Doc, task_terms: frozenset[str]) -> float:
-    """Full weight when every term of the doc's area appears in the task context."""
+    """Weight scaled by the share of the doc's area terms the task mentions.
+
+    Partial credit matters because real area slugs are compound: a task naming
+    only "feed" should still favour the "discovery-feed" area.
+    """
     if doc.area is None:
         return 0.0
     area_terms = terms_in(text=doc.area)
-    if area_terms and area_terms <= task_terms:
-        return AREA_MATCH_WEIGHT
-    return 0.0
+    if not area_terms:
+        return 0.0
+    return AREA_MATCH_WEIGHT * len(area_terms & task_terms) / len(area_terms)
 
 
 def overlap_score(*, doc: Doc, task_terms: frozenset[str]) -> float:

@@ -9,6 +9,7 @@ from pathlib import Path
 from ..cli import EXIT_OK, EXIT_USAGE
 from ..constants import DOC_FILE_SUFFIX
 from ..docs import FilesystemDocSource
+from ..classify.apply import apply_cached_classifications
 from ..docs.entries import with_entries
 from ..model import Doc, Link, Project
 from .backlinks import backlinks, deduplicate_links, is_citation, sweep_targets
@@ -32,9 +33,14 @@ __all__ = [
 EXIT_EMPTY_CORPUS = 1
 
 def load_corpus(*, docs_dir: Path, project_slug: str) -> tuple[Doc, ...]:
-    """Every document in a corpus directory, plus an entry node per log section."""
+    """Every document in a corpus directory, plus an entry node per log section.
+
+    Cached classifications fill in kinds the documents do not declare. Reading the
+    cache is offline; populating it is `spine classify run`.
+    """
     project = Project(slug=project_slug, name=project_slug, docs_dir=docs_dir)
-    return with_entries(docs=FilesystemDocSource().load_all(project=project))
+    loaded = FilesystemDocSource().load_all(project=project)
+    return with_entries(docs=apply_cached_classifications(docs=loaded))
 
 
 def build_links(*, docs: tuple[Doc, ...]) -> tuple[Link, ...]:
