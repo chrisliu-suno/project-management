@@ -6,6 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.optional-dependencies]
+classify = ["anthropic>=0.60"]
+
 [project.scripts]
 spine = "spine.cli:main"
 
