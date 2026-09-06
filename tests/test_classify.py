@@ -218,3 +218,26 @@ def test_cli_exposes_the_classify_subcommand() -> None:
 
     parsed = build_parser().parse_args(["classify", "pending", "--dir", ".", "--project", "p"])
     assert parsed.handler is not None
+
+
+def test_cached_classifications_are_reconciled_on_apply() -> None:
+    from spine.classify.apply import apply_cached_classifications
+    from spine.classify.cache import ClassificationCache
+
+    cache = ClassificationCache()
+    first = _doc(stem="hub-one", body="# One\n\nBody one.")
+    second = _doc(stem="hub-two", body="# Two\n\nBody two.")
+    for doc, confidence in ((first, 0.4), (second, 0.95)):
+        cache.put(
+            body=doc.body,
+            classification=Classification(
+                doc_id=doc.doc_id,
+                kind=DocKind.BRIEF,
+                read_when=ReadWhen.EVERY_TIME,
+                area=None,
+                confidence=confidence,
+            ),
+        )
+    applied = apply_cached_classifications(docs=(first, second), cache=cache)
+    briefs = [doc.doc_id for doc in applied if doc.kind is DocKind.BRIEF]
+    assert briefs == [second.doc_id]
