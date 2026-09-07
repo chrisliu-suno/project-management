@@ -35,7 +35,7 @@ EPHEMERAL_CACHE = {"type": "ephemeral"}
 ADAPTIVE_THINKING = {"type": "adaptive"}
 
 
-class ClassifierUnavailableError(RuntimeError):
+class ModelUnavailableError(RuntimeError):
     """The Anthropic SDK is not installed, or the request could not be made."""
 
 
@@ -54,11 +54,11 @@ class Classification:
     confidence: float
 
 
-def _load_anthropic_client() -> object:
+def load_anthropic_client() -> object:
     try:
         import anthropic
     except ImportError as cause:
-        raise ClassifierUnavailableError(
+        raise ModelUnavailableError(
             f"{ANTHROPIC_PACKAGE_NAME} is not installed; install spine[classify]"
         ) from cause
     return anthropic.Anthropic()
@@ -83,7 +83,7 @@ def parse_response_text(*, payload: str) -> tuple[Classification, ...]:
     try:
         decoded = json.loads(payload)
     except json.JSONDecodeError as cause:
-        raise ClassifierUnavailableError(f"classifier returned invalid json: {cause}") from cause
+        raise ModelUnavailableError(f"classifier returned invalid json: {cause}") from cause
     entries = decoded.get(RESULTS_FIELD, []) if isinstance(decoded, dict) else []
     parsed = (_parse_verdict(entry=entry) for entry in entries if isinstance(entry, dict))
     return tuple(verdict for verdict in parsed if verdict is not None)
@@ -97,7 +97,7 @@ class AnthropicClassifier:
 
     def _ensure_client(self) -> object:
         if self._client is None:
-            self._client = _load_anthropic_client()
+            self._client = load_anthropic_client()
         return self._client
 
     def classify_batch(self, *, docs: tuple[Doc, ...]) -> tuple[Classification, ...]:
@@ -123,11 +123,11 @@ class AnthropicClassifier:
         )
         if getattr(response, "stop_reason", None) == REFUSAL_STOP_REASON:
             raise ClassifierRefusedError("classifier declined to classify this batch")
-        return parse_response_text(payload=_first_text_block(response=response))
+        return parse_response_text(payload=first_text_block(response=response))
 
 
-def _first_text_block(*, response: object) -> str:
+def first_text_block(*, response: object) -> str:
     for block in getattr(response, "content", ()):
         if getattr(block, "type", None) == TEXT_BLOCK_TYPE:
             return str(getattr(block, "text", ""))
-    raise ClassifierUnavailableError("classifier response carried no text block")
+    raise ModelUnavailableError("classifier response carried no text block")

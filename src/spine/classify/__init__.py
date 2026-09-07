@@ -19,7 +19,7 @@ from .client import (
     AnthropicClassifier,
     Classification,
     ClassifierRefusedError,
-    ClassifierUnavailableError,
+    ModelUnavailableError,
 )
 from .prompt import batch_prompt, system_prompt
 from .reconcile import reconcile
@@ -30,7 +30,7 @@ __all__ = [
     "Classification",
     "ClassificationCache",
     "ClassifierRefusedError",
-    "ClassifierUnavailableError",
+    "ModelUnavailableError",
     "batch_prompt",
     "brief_health",
     "classification_schema",
@@ -131,7 +131,7 @@ def _handle_classify(args: argparse.Namespace) -> int:
         classified = classify_corpus(
             docs=loaded, classifier=AnthropicClassifier(), cache=ClassificationCache()
         )
-    except (ClassifierUnavailableError, ClassifierRefusedError) as error:
+    except (ModelUnavailableError, ClassifierRefusedError) as error:
         print(str(error), file=sys.stderr)
         return EXIT_CLASSIFIER_UNAVAILABLE
     for doc in classified:
