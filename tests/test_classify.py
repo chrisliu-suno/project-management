@@ -14,7 +14,7 @@ from spine.classify.client import (
     AnthropicClassifier,
     Classification,
     ClassifierRefusedError,
-    ClassifierUnavailableError,
+    ModelUnavailableError,
     parse_response_text,
 )
 from spine.classify.prompt import batch_prompt, describe_document, system_prompt
@@ -161,7 +161,7 @@ def test_malformed_entries_are_dropped_not_fatal() -> None:
 
 
 def test_invalid_json_raises_rather_than_returning_nothing() -> None:
-    with pytest.raises(ClassifierUnavailableError):
+    with pytest.raises(ModelUnavailableError):
         parse_response_text(payload="{not json")
 
 
