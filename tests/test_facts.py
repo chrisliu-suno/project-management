@@ -134,3 +134,45 @@ def test_cli_exposes_the_facts_subcommand() -> None:
 
     parsed = build_parser().parse_args(["facts", "drift", "--project", PROJECT_SLUG])
     assert parsed.handler is not None
+
+
+def test_replacing_a_kind_drops_facts_the_filter_no_longer_claims() -> None:
+    store = FactStore()
+    store.record(facts=(_pr(number=1), _pr(number=2), _pr(number=3)))
+    store.replace_kind(
+        project_slug=PROJECT_SLUG, kind=FactKind.PULL_REQUEST, facts=(_pr(number=2),)
+    )
+    assert {f.reference for f in store.for_project(project_slug=PROJECT_SLUG)} == {"#2"}
+
+
+def test_replacing_one_kind_leaves_the_other_alone() -> None:
+    store = FactStore()
+    commit = Fact(
+        fact_id=f"{PROJECT_SLUG}:commit:abc",
+        project_slug=PROJECT_SLUG,
+        kind=FactKind.COMMIT,
+        reference="abc",
+        title="a commit",
+        author="someone",
+        occurred_at="2026-01-01T00:00:00Z",
+    )
+    store.record(facts=(commit, _pr(number=1)))
+    store.replace_kind(project_slug=PROJECT_SLUG, kind=FactKind.PULL_REQUEST, facts=())
+    assert {f.reference for f in store.for_project(project_slug=PROJECT_SLUG)} == {"abc"}
+
+
+def test_replacing_leaves_other_projects_alone() -> None:
+    store = FactStore()
+    store.record(facts=(_pr(number=1),))
+    other = Fact(
+        fact_id="beta:pr:9",
+        project_slug="beta",
+        kind=FactKind.PULL_REQUEST,
+        reference="#9",
+        title="theirs",
+        author="someone",
+        occurred_at="2026-01-01T00:00:00Z",
+    )
+    store.record(facts=(other,))
+    store.replace_kind(project_slug=PROJECT_SLUG, kind=FactKind.PULL_REQUEST, facts=())
+    assert len(store.for_project(project_slug="beta")) == 1

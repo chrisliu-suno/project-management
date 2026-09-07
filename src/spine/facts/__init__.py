@@ -41,10 +41,19 @@ FIELD_SEPARATOR = "\t"
 
 def observe_project(*, project, repo_dir: Path | None = None, branch: str = "HEAD") -> int:
     """Observe and store everything visible for a project; returns the fact count."""
-    collected = list(observe_pull_requests(project=project))
+    store = FactStore()
+    written = store.replace_kind(
+        project_slug=project.slug,
+        kind=FactKind.PULL_REQUEST,
+        facts=observe_pull_requests(project=project),
+    )
     if repo_dir is not None:
-        collected.extend(observe_commits(project=project, repo_dir=repo_dir, branch=branch))
-    return FactStore().record(facts=tuple(collected))
+        written += store.replace_kind(
+            project_slug=project.slug,
+            kind=FactKind.COMMIT,
+            facts=observe_commits(project=project, repo_dir=repo_dir, branch=branch),
+        )
+    return written
 
 
 def drift_for_project(*, project):

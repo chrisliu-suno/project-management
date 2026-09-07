@@ -36,6 +36,9 @@ FROM facts WHERE project_slug = :project_slug ORDER BY occurred_at DESC
 """
 
 COUNT_SQL = "SELECT COUNT(*) FROM facts WHERE project_slug = :project_slug"
+DELETE_KIND_SQL = (
+    "DELETE FROM facts WHERE project_slug = :project_slug AND kind = :kind"
+)
 
 
 def facts_db_path() -> Path:
@@ -62,6 +65,23 @@ class FactStore:
             return 0
         with self._connect() as connection:
             connection.executemany(UPSERT_SQL, [fact.as_dict() for fact in facts])
+        return len(facts)
+
+    def replace_kind(
+        self, *, project_slug: str, kind: FactKind, facts: tuple[Fact, ...]
+    ) -> int:
+        """Swap a project's facts of one kind for a fresh observation.
+
+        An observation is a complete snapshot of what is currently visible, so
+        merging would keep facts that a narrowed filter no longer considers the
+        project's — those stale rows would go on driving drift and proposals.
+        """
+        with self._connect() as connection:
+            connection.execute(
+                DELETE_KIND_SQL, {"project_slug": project_slug, "kind": str(kind)}
+            )
+            if facts:
+                connection.executemany(UPSERT_SQL, [fact.as_dict() for fact in facts])
         return len(facts)
 
     def for_project(self, *, project_slug: str) -> tuple[Fact, ...]:
