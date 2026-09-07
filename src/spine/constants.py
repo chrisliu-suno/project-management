@@ -195,3 +195,10 @@ SESSION_STALE_SECONDS = 1800
 STEERING_INBOX_DIR_NAME = "steering"
 BROADCAST_FILE_NAME = "broadcasts.jsonl"
 MAX_BROADCAST_REPLAY = 50
+
+GUARD_UNDECLARED_MESSAGE = "this session has not said what it is doing"
+GUARD_OUTSIDE_SCOPE_MESSAGE = "editing outside what this session declared"
+CRITIQUE_MAX_ROUNDS = 3
+CRITIQUE_MODEL_ID = "claude-opus-5"
+CRITIQUE_EFFORT = "medium"
+CRITIQUE_MAX_TOKENS = 8000
