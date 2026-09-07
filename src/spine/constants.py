@@ -76,6 +76,7 @@ DOC_LIFECYCLE_KEY = "lifecycle"
 DOC_GENERATED_KEYS = ("generated", "is_generated")
 
 MARKDOWN_H1_PREFIX = "# "
+MARKDOWN_FENCE_PREFIX = "```"
 FILENAME_WORD_SEPARATOR = "-"
 DOC_KIND_WORD_SEPARATOR = "_"
 

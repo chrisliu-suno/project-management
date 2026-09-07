@@ -348,3 +348,28 @@ def test_docs_help_is_available(capsys: pytest.CaptureFixture[str]) -> None:
         main(["docs", "--help"])
     assert raised.value.code == 0
     assert "check" in capsys.readouterr().out
+
+
+def test_a_comment_inside_a_code_fence_is_not_a_title() -> None:
+    from spine.docs.loader import first_h1
+
+    body = "```python\n# services.py\n```\n\n# Real Title\n"
+    assert first_h1(body=body) == "Real Title"
+
+
+def test_a_heading_after_a_closed_fence_is_still_found() -> None:
+    from spine.docs.loader import first_h1
+
+    assert first_h1(body="```\n# x\n```\n# After\n") == "After"
+
+
+def test_a_heading_before_any_fence_is_unaffected() -> None:
+    from spine.docs.loader import first_h1
+
+    assert first_h1(body="# First\n\n```\n# x\n```\n") == "First"
+
+
+def test_a_document_with_no_heading_outside_fences_has_none() -> None:
+    from spine.docs.loader import first_h1
+
+    assert first_h1(body="```\n# only in code\n```\n") is None
