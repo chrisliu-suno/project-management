@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import sys
 
 from ..cli import EXIT_OK
 from ..constants import DASHBOARD_HOST, DASHBOARD_PORT
 from .api import pick_payload, projects_payload
 from .page import render_page
-from .server import build_server, serve_forever
+from .server import PortInUseError, build_server, is_dashboard_at, serve_forever
 
 __all__ = [
+    "PortInUseError",
     "build_server",
+    "is_dashboard_at",
     "pick_payload",
     "projects_payload",
     "register_subcommand",
@@ -20,8 +23,22 @@ __all__ = [
 ]
 
 
+EXIT_PORT_IN_USE = 1
+
+
 def _handle_serve(args: argparse.Namespace) -> int:
-    serve_forever(host=args.host, port=args.port)
+    try:
+        serve_forever(host=args.host, port=args.port)
+    except PortInUseError as busy:
+        if busy.is_ours:
+            print(f"dashboard already running on http://{busy.host}:{busy.port}")
+        else:
+            print(
+                f"port {busy.port} is taken by something else; "
+                f"start elsewhere with --port",
+                file=sys.stderr,
+            )
+        return EXIT_PORT_IN_USE
     return EXIT_OK
 
 

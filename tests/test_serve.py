@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import socket
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -115,3 +117,38 @@ def test_cli_exposes_the_serve_subcommand() -> None:
 
     parsed = build_parser().parse_args(["serve", "--port", "9999"])
     assert parsed.port == 9999
+
+
+def test_a_second_serve_reports_the_running_dashboard(
+    running_server: ThreadingHTTPServer, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from spine.serve import _handle_serve
+
+    host, port = running_server.server_address[:2]
+    args = argparse.Namespace(host=host, port=port)
+    assert _handle_serve(args) != 0
+    assert "already running" in capsys.readouterr().out
+
+
+def test_a_port_held_by_something_else_says_so(capsys: pytest.CaptureFixture[str]) -> None:
+    from spine.serve import _handle_serve
+
+    blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    blocker.bind((LOOPBACK, EPHEMERAL_PORT))
+    blocker.listen(1)
+    try:
+        args = argparse.Namespace(host=LOOPBACK, port=blocker.getsockname()[1])
+        assert _handle_serve(args) != 0
+        assert "taken by something else" in capsys.readouterr().err
+    finally:
+        blocker.close()
+
+
+def test_probing_an_unbound_port_is_false() -> None:
+    from spine.serve import is_dashboard_at
+
+    free = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    free.bind((LOOPBACK, EPHEMERAL_PORT))
+    port = free.getsockname()[1]
+    free.close()
+    assert is_dashboard_at(host=LOOPBACK, port=port) is False

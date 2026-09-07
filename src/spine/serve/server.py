@@ -6,8 +6,13 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from ..constants import DASHBOARD_HOST, DASHBOARD_PICK_BUDGET, DASHBOARD_PORT
-from .api import ERROR_FIELD, pick_payload, projects_payload
+from ..constants import (
+    DASHBOARD_HOST,
+    DASHBOARD_PICK_BUDGET,
+    DASHBOARD_PORT,
+    DASHBOARD_PROBE_TIMEOUT_SECONDS,
+)
+from .api import ERROR_FIELD, PROJECTS_FIELD, pick_payload, projects_payload
 from .page import render_page
 
 ROOT_PATH = "/"
@@ -21,6 +26,31 @@ HTTP_NOT_FOUND = 404
 JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 HTML_CONTENT_TYPE = "text/html; charset=utf-8"
 RESPONSE_ENCODING = "utf-8"
+
+
+class PortInUseError(OSError):
+    """The port is taken. `is_ours` says whether a dashboard already answers there."""
+
+    def __init__(self, *, host: str, port: int, is_ours: bool) -> None:
+        self.host = host
+        self.port = port
+        self.is_ours = is_ours
+        super().__init__(f"cannot bind {host}:{port}")
+
+
+def is_dashboard_at(*, host: str, port: int) -> bool:
+    """Whether a spine dashboard already answers on this address."""
+    import json as _json
+    from urllib.error import URLError
+    from urllib.request import urlopen
+
+    try:
+        with urlopen(
+            f"http://{host}:{port}{PROJECTS_PATH}", timeout=DASHBOARD_PROBE_TIMEOUT_SECONDS
+        ) as response:
+            return PROJECTS_FIELD in _json.loads(response.read().decode(RESPONSE_ENCODING))
+    except (URLError, ValueError, OSError):
+        return False
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -69,7 +99,9 @@ def build_server(
     try:
         return ThreadingHTTPServer((host, port), DashboardHandler)
     except OSError as cause:
-        raise OSError(f"cannot bind {host}:{port} — is a dashboard already running?") from cause
+        raise PortInUseError(
+            host=host, port=port, is_ours=is_dashboard_at(host=host, port=port)
+        ) from cause
 
 
 def serve_forever(*, host: str = DASHBOARD_HOST, port: int = DASHBOARD_PORT) -> None:
