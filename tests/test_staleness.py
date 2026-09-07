@@ -117,3 +117,18 @@ def test_log_entries_are_never_reported_as_stale(tmp_path: Path) -> None:
     entry = _doc(doc_id=SUPERSEDED_ID, stem="design", parent=f"{PROJECT_SLUG}:decisions")
     facts = (_merged(when=datetime.now(tz=UTC)),)
     assert stale_since_shipped(docs=(entry,), facts=facts, docs_dir=tmp_path) == ()
+
+
+def test_two_documents_sharing_a_title_stay_distinguishable() -> None:
+    docs = (
+        _doc(doc_id=SUPERSEDED_ID, stem="prd-product", parent=f"{PROJECT_SLUG}:decisions"),
+        _doc(doc_id=CITER_ID, stem="design"),
+    )
+    found = unswept_supersessions(docs=docs, links=(_supersedes(), _citation()))
+    assert "prd-product.md" in found[0].detail
+
+
+def test_a_superseded_document_missing_from_the_corpus_is_named_by_id() -> None:
+    docs = (_doc(doc_id=CITER_ID, stem="design"),)
+    found = unswept_supersessions(docs=docs, links=(_supersedes(), _citation()))
+    assert SUPERSEDED_ID in found[0].detail

@@ -19,6 +19,7 @@ from ..constants import (
     DOC_TITLE_KEY,
     FALLBACK_DOC_KIND,
     FILENAME_WORD_SEPARATOR,
+    MARKDOWN_FENCE_PREFIX,
     MARKDOWN_H1_PREFIX,
     PROJECT_SLUG_SEPARATOR,
 )
@@ -119,9 +120,14 @@ def resolve_title(*, mapping: dict[str, object], body: str, path: Path) -> str:
 
 
 def first_h1(*, body: str) -> str | None:
+    """The first real H1, skipping fenced blocks where `#` starts a comment."""
+    is_inside_fence = False
     for line in body.splitlines():
         stripped = line.lstrip()
-        if stripped.startswith(MARKDOWN_H1_PREFIX):
+        if stripped.startswith(MARKDOWN_FENCE_PREFIX):
+            is_inside_fence = not is_inside_fence
+            continue
+        if not is_inside_fence and stripped.startswith(MARKDOWN_H1_PREFIX):
             return stripped.removeprefix(MARKDOWN_H1_PREFIX).strip() or None
     return None
 
