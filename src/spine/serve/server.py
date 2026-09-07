@@ -17,6 +17,8 @@ from .api import (
     PROJECTS_FIELD,
     pick_payload,
     projects_payload,
+    decide_payload,
+    proposals_payload,
     sessions_payload,
     steer_payload,
 )
@@ -27,6 +29,11 @@ PROJECTS_PATH = "/api/projects"
 PICK_PATH = "/api/pick"
 SESSIONS_PATH = "/api/sessions"
 STEER_PATH = "/api/steer"
+PROPOSALS_PATH = "/api/proposals"
+DECIDE_PATH = "/api/decide"
+ID_PARAM = "id"
+ACCEPT_PARAM = "accept"
+ACCEPT_TRUE = "true"
 SESSION_PARAM = "session"
 ACTION_PARAM = "action"
 BODY_PARAM = "body"
@@ -112,6 +119,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     session_id=(query.get(SESSION_PARAM) or [""])[0],
                     action=(query.get(ACTION_PARAM) or [""])[0],
                     body=(query.get(BODY_PARAM) or [""])[0],
+                ),
+            )
+            return
+        if parsed.path == PROPOSALS_PATH:
+            self._send_json(status=HTTP_OK, payload=proposals_payload())
+            return
+        if parsed.path == DECIDE_PATH:
+            query = parse_qs(parsed.query)
+            self._send_json(
+                status=HTTP_OK,
+                payload=decide_payload(
+                    proposal_id=(query.get(ID_PARAM) or [""])[0],
+                    accept=(query.get(ACCEPT_PARAM) or [""])[0] == ACCEPT_TRUE,
                 ),
             )
             return

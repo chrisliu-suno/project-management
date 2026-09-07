@@ -176,3 +176,21 @@ def test_steering_a_session_succeeds(running_server: ThreadingHTTPServer) -> Non
     status, payload = _get(server=running_server, path="/api/steer?session=s1&action=pause")
     assert status == 200
     assert payload.get("ok") is True
+
+
+def test_the_proposals_route_answers_json(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/proposals")
+    assert status == 200
+    assert "proposals" in payload
+
+
+def test_deciding_an_unnamed_proposal_is_an_error(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/decide?id=&accept=true")
+    assert status == 200
+    assert ERROR_FIELD in payload
+
+
+def test_deciding_an_unknown_proposal_is_an_error(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/decide?id=nope&accept=true")
+    assert status == 200
+    assert ERROR_FIELD in payload

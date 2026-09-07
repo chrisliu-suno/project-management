@@ -81,6 +81,16 @@ button:hover{opacity:.9}
   background:var(--surface);color:var(--muted);border:1px solid var(--rule)}
 .acts button:hover{color:var(--ink);border-color:var(--accent)}
 .quiet{color:var(--faint);font-size:.875rem}
+.prop{border:1px solid var(--rule);border-left:3px solid var(--accent);
+  border-radius:2px;padding:.9rem 1rem;display:flex;flex-direction:column;gap:.5rem}
+.prop h3{font-size:.95rem;margin:0}
+.prop .why{font-size:.82rem;color:var(--muted)}
+.prop pre{margin:0;padding:.6rem .7rem;background:var(--sunk);border-radius:2px;
+  font-family:var(--mono);font-size:.75rem;overflow-x:auto;white-space:pre-wrap}
+.prop .where{font-family:var(--mono);font-size:.7rem;color:var(--faint);word-break:break-all}
+.prop .decide{display:flex;gap:.4rem}
+.prop .decide .yes{background:var(--ok);border-color:var(--ok);color:#fff}
+.prop .decide .no{background:var(--surface);color:var(--muted);border:1px solid var(--rule)}
 footer{border-top:1px solid var(--rule);padding-top:1.2rem;font-size:.8rem;color:var(--faint)}
 code{font-family:var(--mono);font-size:.85em;background:var(--sunk);padding:.1em .35em;border-radius:2px}
 """
@@ -141,6 +151,42 @@ async function loadProjects(){
       host.append(projectCard(p));
       const o=document.createElement('option');o.value=p.slug;o.textContent=p.slug;sel.append(o);
     });
+  }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
+}
+
+async function decide(id,accept){
+  try{
+    const r=await fetch('/api/decide?id='+encodeURIComponent(id)+'&accept='+(accept?'true':'false'));
+    const j=await r.json();
+    if(j.error){alert(j.error);return}
+    loadProposals();loadProjects();
+  }catch(e){alert('Could not decide: '+e.message)}
+}
+
+function proposalCard(p){
+  const card=el('div','prop');
+  card.append(el('h3',null,p.headline),el('div','why',p.rationale),
+    el('div','where','appends to '+p.doc_path));
+  const pre=document.createElement('pre');pre.textContent=p.body;card.append(pre);
+  const row=el('div','decide');
+  const yes=document.createElement('button');yes.type='button';yes.className='yes';
+  yes.textContent='Accept';yes.addEventListener('click',()=>decide(p.proposal_id,true));
+  const no=document.createElement('button');no.type='button';no.className='no';
+  no.textContent='Reject';no.addEventListener('click',()=>decide(p.proposal_id,false));
+  row.append(yes,no);card.append(row);
+  return card;
+}
+
+async function loadProposals(){
+  const host=document.getElementById('proposals');host.textContent='';
+  try{
+    const r=await fetch('/api/proposals');const j=await r.json();
+    if(j.error){host.append(el('p','err',j.error));return}
+    if(!j.proposals.length){
+      host.append(el('p','quiet','Nothing waiting. Proposals appear after: spine facts observe, then spine propose generate.'));
+      return;
+    }
+    j.proposals.forEach(p=>host.append(proposalCard(p)));
   }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
 }
 
@@ -214,6 +260,7 @@ async function runPick(ev){
 document.getElementById('pickform').addEventListener('submit',runPick);
 loadProjects();
 loadSessions();
+loadProposals();
 """
 
 
@@ -236,6 +283,14 @@ def render_page() -> str:
   </header>
 
   <div id="projects"></div>
+
+  <section class="card">
+    <div>
+      <p class="eyebrow">needs you</p>
+      <h2>Proposed edits</h2>
+    </div>
+    <div id="proposals"><p class="quiet">Loading...</p></div>
+  </section>
 
   <section class="card">
     <div>

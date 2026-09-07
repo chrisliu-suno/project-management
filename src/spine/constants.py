@@ -202,3 +202,7 @@ CRITIQUE_MAX_ROUNDS = 3
 CRITIQUE_MODEL_ID = "claude-opus-5"
 CRITIQUE_EFFORT = "medium"
 CRITIQUE_MAX_TOKENS = 8000
+
+PROPOSALS_DB_FILE_NAME = "proposals.sqlite3"
+PROPOSAL_APPEND_HEADING = "## Shipped since this document was written"
+PROPOSAL_MAX_PER_PROJECT = 25

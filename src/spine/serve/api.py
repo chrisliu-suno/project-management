@@ -8,6 +8,7 @@ from ..model import Doc, Selection
 ERROR_FIELD = "error"
 PROJECTS_FIELD = "projects"
 SESSIONS_FIELD = "sessions"
+PROPOSALS_FIELD = "proposals"
 OK_FIELD = "ok"
 HEALTH_UNAVAILABLE = "health analysis is unavailable"
 EMPTY_TASK_MESSAGE = "describe a task to see what spine would load"
@@ -96,3 +97,30 @@ def steer_payload(*, session_id: str, action: str, body: str) -> dict[str, objec
         return {ERROR_FIELD: f"unknown action {action!r}"}
     message = LiveStore().steer(session_id=session_id, action=chosen, body=body)
     return {OK_FIELD: True, "message": message.as_dict()}
+
+
+def proposals_payload() -> dict[str, object]:
+    """Proposals waiting on a decision, newest first."""
+    try:
+        from ..proposals import ProposalStore
+    except ImportError:
+        return {PROPOSALS_FIELD: []}
+    try:
+        pending = ProposalStore().pending()
+    except Exception as cause:
+        return {PROPOSALS_FIELD: [], ERROR_FIELD: str(cause)}
+    return {PROPOSALS_FIELD: [proposal.as_dict() for proposal in pending]}
+
+
+def decide_payload(*, proposal_id: str, accept: bool) -> dict[str, object]:
+    """Accept or reject a proposal, applying the edit when accepted."""
+    try:
+        from ..proposals import decide_proposal
+    except ImportError as cause:
+        return {ERROR_FIELD: f"proposals are unavailable: {cause}"}
+    if not proposal_id.strip():
+        return {ERROR_FIELD: "name a proposal to decide"}
+    succeeded, message = decide_proposal(proposal_id=proposal_id, accept=accept)
+    if not succeeded:
+        return {ERROR_FIELD: message}
+    return {OK_FIELD: True, "message": message}
