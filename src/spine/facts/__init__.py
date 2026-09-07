@@ -62,9 +62,16 @@ def drift_for_project(*, project):
 
     if not project.docs_dir.is_dir():
         return ()
+    from ..index import build_links
+
     docs = load_corpus(docs_dir=project.docs_dir, project_slug=project.slug)
     facts = FactStore().for_project(project_slug=project.slug)
-    return drift_findings(docs=docs, facts=facts)
+    return drift_findings(
+        docs=docs,
+        facts=facts,
+        links=build_links(docs=docs),
+        docs_dir=project.docs_dir,
+    )
 
 
 def _project_or_none(*, slug: str):

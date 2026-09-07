@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 
 from ..dashboard import Finding, Severity
-from ..model import Doc
+from pathlib import Path
+
+from ..model import Doc, Link
 from .model import Fact, FactKind, PullRequestState
 
 PR_REFERENCE_PATTERN = re.compile(r"#(\d{2,6})")
@@ -82,11 +84,22 @@ def documented_but_unmerged(
     )
 
 
-def drift_findings(*, docs: tuple[Doc, ...], facts: tuple[Fact, ...]) -> tuple[Finding, ...]:
-    """Every place the documents and the observed facts disagree."""
-    if not facts:
-        return ()
-    return (
-        *merged_but_undocumented(docs=docs, facts=facts),
-        *documented_but_unmerged(docs=docs, facts=facts),
-    )
+def drift_findings(
+    *,
+    docs: tuple[Doc, ...],
+    facts: tuple[Fact, ...],
+    links: tuple[Link, ...] = (),
+    docs_dir: Path | None = None,
+) -> tuple[Finding, ...]:
+    """Every place the documents, the graph, and the observed facts disagree."""
+    from .staleness import stale_since_shipped, unswept_supersessions
+
+    found: list[Finding] = []
+    if links:
+        found.extend(unswept_supersessions(docs=docs, links=links))
+    if facts:
+        found.extend(merged_but_undocumented(docs=docs, facts=facts))
+        found.extend(documented_but_unmerged(docs=docs, facts=facts))
+        if docs_dir is not None:
+            found.extend(stale_since_shipped(docs=docs, facts=facts, docs_dir=docs_dir))
+    return tuple(found)
