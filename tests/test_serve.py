@@ -152,3 +152,27 @@ def test_probing_an_unbound_port_is_false() -> None:
     port = free.getsockname()[1]
     free.close()
     assert is_dashboard_at(host=LOOPBACK, port=port) is False
+
+
+def test_the_sessions_route_answers_json(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/sessions")
+    assert status == 200
+    assert "sessions" in payload
+
+
+def test_steering_an_unnamed_session_is_an_error(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/steer?session=&action=stop")
+    assert status == 200
+    assert ERROR_FIELD in payload
+
+
+def test_an_unknown_steering_action_is_an_error(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/steer?session=s1&action=explode")
+    assert status == 200
+    assert ERROR_FIELD in payload
+
+
+def test_steering_a_session_succeeds(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _get(server=running_server, path="/api/steer?session=s1&action=pause")
+    assert status == 200
+    assert payload.get("ok") is True

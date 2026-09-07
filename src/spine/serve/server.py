@@ -12,12 +12,24 @@ from ..constants import (
     DASHBOARD_PORT,
     DASHBOARD_PROBE_TIMEOUT_SECONDS,
 )
-from .api import ERROR_FIELD, PROJECTS_FIELD, pick_payload, projects_payload
+from .api import (
+    ERROR_FIELD,
+    PROJECTS_FIELD,
+    pick_payload,
+    projects_payload,
+    sessions_payload,
+    steer_payload,
+)
 from .page import render_page
 
 ROOT_PATH = "/"
 PROJECTS_PATH = "/api/projects"
 PICK_PATH = "/api/pick"
+SESSIONS_PATH = "/api/sessions"
+STEER_PATH = "/api/steer"
+SESSION_PARAM = "session"
+ACTION_PARAM = "action"
+BODY_PARAM = "body"
 PROJECT_PARAM = "project"
 TASK_PARAM = "task"
 
@@ -86,6 +98,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     project_slug=(query.get(PROJECT_PARAM) or [""])[0],
                     task=(query.get(TASK_PARAM) or [""])[0],
                     budget=DASHBOARD_PICK_BUDGET,
+                ),
+            )
+            return
+        if parsed.path == SESSIONS_PATH:
+            self._send_json(status=HTTP_OK, payload=sessions_payload())
+            return
+        if parsed.path == STEER_PATH:
+            query = parse_qs(parsed.query)
+            self._send_json(
+                status=HTTP_OK,
+                payload=steer_payload(
+                    session_id=(query.get(SESSION_PARAM) or [""])[0],
+                    action=(query.get(ACTION_PARAM) or [""])[0],
+                    body=(query.get(BODY_PARAM) or [""])[0],
                 ),
             )
             return
