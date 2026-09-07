@@ -39,6 +39,16 @@ def _missing_dir_snapshot(*, project: Project) -> ProjectSnapshot:
     )
 
 
+def _drift(*, project: Project) -> tuple[Finding, ...]:
+    """Drift findings, or nothing when facts have not been observed yet."""
+    try:
+        from ..facts import drift_for_project
+
+        return drift_for_project(project=project)
+    except Exception:
+        return ()
+
+
 def build_snapshot(*, project: Project) -> ProjectSnapshot:
     """One project's counts and findings, or a problem snapshot if its docs are gone."""
     if not project.docs_dir.is_dir():
@@ -56,7 +66,7 @@ def build_snapshot(*, project: Project) -> ProjectSnapshot:
         total_lines=sum(doc.line_count for doc in addressable),
         kind_counts=_counts_by(docs=docs, attribute="kind"),
         read_when_counts=_counts_by(docs=docs, attribute="read_when"),
-        findings=all_findings(docs=docs, links=links),
+        findings=all_findings(docs=docs, links=links) + _drift(project=project),
     )
 
 
