@@ -68,6 +68,19 @@ button:hover{opacity:.9}
   font-size:.72rem;color:var(--faint);white-space:nowrap}
 .reason{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
 .err{color:var(--problem);font-size:.875rem}
+.sessions{display:flex;flex-direction:column;gap:.5rem}
+.srow{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;
+  padding:.6rem .75rem;background:var(--sunk);border-radius:2px;
+  border-left:3px solid var(--edge,var(--ok))}
+.srow.paused{--edge:var(--warn)} .srow.stopped{--edge:var(--problem)}
+.srow .sid{font-family:var(--mono);font-size:.75rem;color:var(--faint);white-space:nowrap}
+.srow .sintent{flex:1;font-size:.88rem;min-width:12rem}
+.srow .sproj{font-family:var(--mono);font-size:.7rem;color:var(--faint);white-space:nowrap}
+.srow .acts{display:flex;gap:.3rem}
+.acts button{padding:.25rem .55rem;font-size:.72rem;font-weight:500;
+  background:var(--surface);color:var(--muted);border:1px solid var(--rule)}
+.acts button:hover{color:var(--ink);border-color:var(--accent)}
+.quiet{color:var(--faint);font-size:.875rem}
 footer{border-top:1px solid var(--rule);padding-top:1.2rem;font-size:.8rem;color:var(--faint)}
 code{font-family:var(--mono);font-size:.85em;background:var(--sunk);padding:.1em .35em;border-radius:2px}
 """
@@ -131,6 +144,54 @@ async function loadProjects(){
   }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
 }
 
+async function steer(id,action){
+  try{
+    const r=await fetch('/api/steer?session='+encodeURIComponent(id)+
+      '&action='+encodeURIComponent(action));
+    const j=await r.json();
+    if(j.error){alert(j.error);return}
+    loadSessions();
+  }catch(e){alert('Could not steer: '+e.message)}
+}
+
+function sessionRow(s){
+  const row=el('div','srow '+s.state);
+  row.append(el('span','sid',s.session_id),el('span','sintent',s.intent||'(no intent declared)'),
+    el('span','sproj',(s.project_slugs||[]).join(',')||'—'));
+  const acts=el('div','acts');
+  [['redirect','Redirect'],['pause','Pause'],['resume','Resume'],['stop','Stop']]
+    .forEach(([action,label])=>{
+      const b=document.createElement('button');b.type='button';b.textContent=label;
+      b.addEventListener('click',()=>{
+        if(action==='redirect'){
+          const body=prompt('Redirect '+s.session_id+' to:');
+          if(!body)return;
+          fetch('/api/steer?session='+encodeURIComponent(s.session_id)+
+            '&action=redirect&body='+encodeURIComponent(body))
+            .then(()=>loadSessions()).catch(e=>alert(e.message));
+          return;
+        }
+        steer(s.session_id,action);
+      });
+      acts.append(b);
+    });
+  row.append(acts);
+  return row;
+}
+
+async function loadSessions(){
+  const host=document.getElementById('sessions');host.textContent='';
+  try{
+    const r=await fetch('/api/sessions');const j=await r.json();
+    if(j.error){host.append(el('p','err',j.error));return}
+    if(!j.sessions.length){
+      host.append(el('p','quiet','No sessions have reported. A session declares itself with: spine live declare --intent "..."'));
+      return;
+    }
+    j.sessions.forEach(s=>host.append(sessionRow(s)));
+  }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
+}
+
 async function runPick(ev){
   ev.preventDefault();
   const out=document.getElementById('pickout');out.textContent='';
@@ -152,6 +213,7 @@ async function runPick(ev){
 
 document.getElementById('pickform').addEventListener('submit',runPick);
 loadProjects();
+loadSessions();
 """
 
 
@@ -174,6 +236,14 @@ def render_page() -> str:
   </header>
 
   <div id="projects"></div>
+
+  <section class="card">
+    <div>
+      <p class="eyebrow">running now</p>
+      <h2>Sessions</h2>
+    </div>
+    <div id="sessions"><p class="quiet">Loading...</p></div>
+  </section>
 
   <section class="card">
     <div>

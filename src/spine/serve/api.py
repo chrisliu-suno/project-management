@@ -7,6 +7,8 @@ from ..model import Doc, Selection
 
 ERROR_FIELD = "error"
 PROJECTS_FIELD = "projects"
+SESSIONS_FIELD = "sessions"
+OK_FIELD = "ok"
 HEALTH_UNAVAILABLE = "health analysis is unavailable"
 EMPTY_TASK_MESSAGE = "describe a task to see what spine would load"
 
@@ -65,3 +67,32 @@ def pick_payload(*, project_slug: str, task: str, budget: int) -> dict[str, obje
     except Exception as cause:
         return {ERROR_FIELD: f"selection failed: {cause}"}
     return _preview_from(project_slug=project_slug, task=task, selection=selection)
+
+
+def sessions_payload() -> dict[str, object]:
+    """Every session that has reported recently, plus its declared intent."""
+    try:
+        from ..live import LiveStore
+    except ImportError:
+        return {SESSIONS_FIELD: []}
+    try:
+        found = LiveStore().live_sessions()
+    except Exception as cause:
+        return {SESSIONS_FIELD: [], ERROR_FIELD: str(cause)}
+    return {SESSIONS_FIELD: [session.as_dict() for session in found]}
+
+
+def steer_payload(*, session_id: str, action: str, body: str) -> dict[str, object]:
+    """Queue a steering instruction for a session."""
+    try:
+        from ..live import LiveStore, SteeringAction
+    except ImportError as cause:
+        return {ERROR_FIELD: f"steering is unavailable: {cause}"}
+    if not session_id.strip():
+        return {ERROR_FIELD: "name a session to steer"}
+    try:
+        chosen = SteeringAction(action)
+    except ValueError:
+        return {ERROR_FIELD: f"unknown action {action!r}"}
+    message = LiveStore().steer(session_id=session_id, action=chosen, body=body)
+    return {OK_FIELD: True, "message": message.as_dict()}
