@@ -6,8 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..constants import TEXTUAL_LINK_CONFIDENCE
-from ..constants import ENTRY_ANCHOR_SEPARATOR
+from ..constants import ENTRY_ANCHOR_SEPARATOR, TEXTUAL_LINK_CONFIDENCE
 from ..docs.entries import slugify_heading
 from ..model import Doc, DocKind, Link, LinkType
 from .backlinks import deduplicate_links
