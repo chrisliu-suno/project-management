@@ -143,14 +143,10 @@ class LiveStore:
             return found
         cutoff = datetime.now(tz=UTC) - timedelta(seconds=SESSION_STALE_SECONDS)
         return tuple(
-            session
-            for session in found
-            if datetime.fromisoformat(session.updated_at) >= cutoff
+            session for session in found if datetime.fromisoformat(session.updated_at) >= cutoff
         )
 
-    def steer(
-        self, *, session_id: str, action: SteeringAction, body: str = ""
-    ) -> SteeringMessage:
+    def steer(self, *, session_id: str, action: SteeringAction, body: str = "") -> SteeringMessage:
         """Queue an instruction for a session to pick up at its next boundary."""
         stamp = now_iso()
         message_id = f"{session_id}:{action}:{stamp}"
@@ -219,8 +215,7 @@ class LiveStore:
     def broadcasts_for(self, *, project_slug: str) -> tuple[Broadcast, ...]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT * FROM broadcasts WHERE project_slug = ?"
-                " ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM broadcasts WHERE project_slug = ? ORDER BY created_at DESC LIMIT ?",
                 (project_slug, MAX_BROADCAST_REPLAY),
             ).fetchall()
         return tuple(
@@ -247,8 +242,7 @@ class LiveStore:
             if not is_free and row["session_id"] != session_id:
                 return False
             connection.execute(
-                "INSERT OR REPLACE INTO leases (subject, session_id, expires_at)"
-                " VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO leases (subject, session_id, expires_at) VALUES (?, ?, ?)",
                 (subject, session_id, expires),
             )
         return True

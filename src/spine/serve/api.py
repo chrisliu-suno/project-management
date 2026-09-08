@@ -9,6 +9,8 @@ ERROR_FIELD = "error"
 PROJECTS_FIELD = "projects"
 SESSIONS_FIELD = "sessions"
 PROPOSALS_FIELD = "proposals"
+COLLISIONS_FIELD = "collisions"
+DECISIONS_FIELD = "decisions"
 OK_FIELD = "ok"
 HEALTH_UNAVAILABLE = "health analysis is unavailable"
 EMPTY_TASK_MESSAGE = "describe a task to see what spine would load"
@@ -97,6 +99,44 @@ def steer_payload(*, session_id: str, action: str, body: str) -> dict[str, objec
         return {ERROR_FIELD: f"unknown action {action!r}"}
     message = LiveStore().steer(session_id=session_id, action=chosen, body=body)
     return {OK_FIELD: True, "message": message.as_dict()}
+
+
+def collisions_payload() -> dict[str, object]:
+    """Working sessions whose declared paths overlap."""
+    try:
+        from ..live import LiveStore
+        from ..live.collisions import collisions_among
+    except ImportError as cause:
+        return {COLLISIONS_FIELD: [], ERROR_FIELD: str(cause)}
+    try:
+        found = collisions_among(sessions=LiveStore().live_sessions())
+    except Exception as cause:
+        return {COLLISIONS_FIELD: [], ERROR_FIELD: str(cause)}
+    return {COLLISIONS_FIELD: [collision.as_dict() for collision in found]}
+
+
+def decisions_payload() -> dict[str, object]:
+    """Logged decisions nobody has acknowledged."""
+    try:
+        from ..decisions import DecisionStore
+    except ImportError as cause:
+        return {DECISIONS_FIELD: [], ERROR_FIELD: str(cause)}
+    try:
+        pending = DecisionStore().pending()
+    except Exception as cause:
+        return {DECISIONS_FIELD: [], ERROR_FIELD: str(cause)}
+    return {DECISIONS_FIELD: [decision.as_dict() for decision in pending]}
+
+
+def ack_payload(*, entry_id: str) -> dict[str, object]:
+    """Mark one logged decision as seen."""
+    if not entry_id:
+        return {ERROR_FIELD: "no decision named"}
+    from ..decisions import DecisionStore
+
+    if DecisionStore().acknowledge(entry_id=entry_id):
+        return {"ok": True, "entry_id": entry_id}
+    return {ERROR_FIELD: f"no unacknowledged decision {entry_id!r}"}
 
 
 def proposals_payload() -> dict[str, object]:
