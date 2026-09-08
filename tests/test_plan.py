@@ -281,3 +281,33 @@ def test_the_dashboard_page_renders_a_plan_block() -> None:
     page = render_page()
     assert "function planBlock" in page
     assert "where this sits" in page
+
+
+LONG_UNSTARTED = "# Checklist\n\n## Phase 1 — a\n\n" + "".join(
+    f"- [ ] item {n}\n" for n in range(40)
+)
+SHORT_WITH_PROGRESS = """# Tracker
+
+| item | Status |
+|---|---|
+| a | **SHIPPED** |
+| b | **NOT BUILT** |
+"""
+
+
+def test_a_long_unstarted_checklist_loses_to_a_short_record_of_progress() -> None:
+    docs = (
+        _doc(body=LONG_UNSTARTED, stem="checklist"),
+        _doc(body=SHORT_WITH_PROGRESS, stem="tracker"),
+    )
+    doc, _ = project_plans(docs=docs)[0]
+    assert doc.path.name == "tracker.md"
+
+
+def test_unticked_boxes_do_not_raise_richness() -> None:
+    assert plan_richness(state=plan_in(doc=_doc(body=LONG_UNSTARTED))) == 1
+
+
+def test_unreadable_rows_do_not_raise_richness() -> None:
+    body = "# D\n\n| item | Status |\n|---|---|\n| a |  |\n| b |  |\n"
+    assert plan_richness(state=plan_in(doc=_doc(body=body))) == 0

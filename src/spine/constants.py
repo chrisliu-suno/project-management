@@ -226,3 +226,4 @@ PLAN_BEARING_KINDS = frozenset({"milestone", "rollout", "open_questions"})
 COLLISION_MAX_REPORTED = 10
 DECISION_REVIEW_MAX_SHOWN = 8
 DECISIONS_DB_FILE_NAME = "decisions.sqlite3"
+PLAN_DONE_WEIGHT = 10
