@@ -33,6 +33,31 @@ That is the whole manual surface. In particular you do not run the indexer, the 
 the proposal drafter — `spine refresh` does all three for every project, and it runs on a
 schedule (see Scheduling).
 
+### Where a task sits in the plan
+
+Plan state is read out of the documents you already write — no new syntax, nothing to keep in
+sync. Three conventions are recognised, and a project can use any mix:
+
+| convention | becomes |
+|---|---|
+| `## Phase 2 — Cut over the decision source` | a milestone, in document order |
+| `### AT-M1 — single-seat (target Aug 14)` | a milestone with a target date |
+| `- [ ]` / `- [x]` under a milestone | work items, open or done |
+| a table with a `Status` column (`**SHIPPED**`, `**PARTIAL**`, `**NOT BUILT**`) | work items with stated status |
+| an `## Open questions` heading | the questions blocking the project |
+
+Each document is read as its own plan; they are never merged, because two documents describe two
+different plans and merging them invents milestones nobody wrote. The richest one — the one
+stating the most decided status — is what a session is told about.
+
+```sh
+spine plan show --project my-project      # current milestone, progress, open work
+spine plan sources --project my-project   # which documents state a plan, richest first
+```
+
+The current milestone and open items are injected into every session on that project, and the
+dashboard shows them per project card.
+
 ### What happens without you
 
 | When | What fires |
@@ -87,6 +112,7 @@ Each is independently replaceable. Depend on `ports.py`, never on a sibling's co
 | — | `spine.proposals` | draft document edits from facts; a human decides each one |
 | — | `spine.critique` | style gate and the unattended critique-and-revise loop |
 | — | `spine.refresh` | one sweep: observe, index, propose, for every project |
+| — | `spine.plan` | milestones, work items, and open questions read from plan prose |
 
 Shared contracts: `model.py` (types), `ports.py` (interfaces), `constants.py` (every limit and
 well-known name), `paths.py` (state locations).

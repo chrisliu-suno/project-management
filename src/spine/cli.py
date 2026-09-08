@@ -26,7 +26,7 @@ def _registrars() -> tuple[SubcommandRegistrar, ...]:
     break the whole CLI, which the session hooks depend on.
     """
     found: list[SubcommandRegistrar] = []
-    for module_name in ("registry", "docs", "index", "picker", "session", "classify", "health", "serve", "context", "facts", "live", "guard", "proposals", "critique", "refresh"):
+    for module_name in ("registry", "docs", "index", "picker", "session", "classify", "health", "serve", "context", "facts", "live", "guard", "proposals", "critique", "refresh", "plan"):
         try:
             module = __import__(f"spine.{module_name}", fromlist=["register_subcommand"])
         except ImportError:

@@ -212,3 +212,13 @@ DRIFT_MAX_REPORTED_DOCS = 8
 
 STYLE_MAX_SENTENCE_WORDS = 34
 CRITIQUE_MAX_GROWTH_RATIO = 1.5
+
+PLAN_SETTLED_STATUSES = frozenset({"done"})
+PLAN_STALLED_STATUSES = frozenset({"blocked"})
+PLAN_STATUS_COLUMN_NAMES = frozenset({"status", "state"})
+PLAN_EVIDENCE_COLUMN_NAMES = frozenset({"evidence", "remaining", "note", "notes"})
+PLAN_OPEN_QUESTION_HEADINGS = ("open question", "open item", "unresolved")
+PLAN_MAX_ITEMS_PER_PROJECT = 400
+PLAN_MAX_OPEN_QUESTIONS = 20
+PLAN_CONTEXT_MAX_ITEMS = 6
+PLAN_BEARING_KINDS = frozenset({"milestone", "rollout", "open_questions"})
