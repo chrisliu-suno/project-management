@@ -6,10 +6,10 @@ import argparse
 import sys
 from pathlib import Path
 
+from ..classify.apply import apply_cached_classifications
 from ..cli import EXIT_OK, EXIT_USAGE
 from ..constants import DOC_FILE_SUFFIX
 from ..docs import FilesystemDocSource
-from ..classify.apply import apply_cached_classifications
 from ..docs.entries import with_entries
 from ..model import Doc, Link, Project
 from .backlinks import backlinks, deduplicate_links, is_citation, sweep_targets
@@ -18,14 +18,15 @@ from .extract import TextualLinkExtractor
 from .store import SqliteGraphStore
 
 __all__ = [
-    "open_graph_store",
     "SqliteGraphStore",
     "TextualLinkExtractor",
     "backlinks",
     "build_links",
+    "build_project",
     "deduplicate_links",
     "is_citation",
     "load_corpus",
+    "open_graph_store",
     "register_subcommand",
     "sweep_targets",
 ]
@@ -53,13 +54,23 @@ def build_links(*, docs: tuple[Doc, ...]) -> tuple[Link, ...]:
     return deduplicate_links(links=tuple(found))
 
 
+def build_project(
+    *, docs_dir: Path, project_slug: str
+) -> tuple[tuple[Doc, ...], tuple[Link, ...]]:
+    """Load a corpus, extract its links, and replace the stored graph for that project."""
+    docs = load_corpus(docs_dir=docs_dir, project_slug=project_slug)
+    if not docs:
+        return (), ()
+    links = build_links(docs=docs)
+    SqliteGraphStore().replace_project(project_slug=project_slug, docs=docs, links=links)
+    return docs, links
+
+
 def _handle_build(args: argparse.Namespace) -> int:
-    docs = load_corpus(docs_dir=args.dir, project_slug=args.project)
+    docs, links = build_project(docs_dir=args.dir, project_slug=args.project)
     if not docs:
         print(f"no {DOC_FILE_SUFFIX} documents under {args.dir}", file=sys.stderr)
         return EXIT_EMPTY_CORPUS
-    links = build_links(docs=docs)
-    SqliteGraphStore().replace_project(project_slug=args.project, docs=docs, links=links)
     print(f"{args.project}: indexed {len(docs)} docs, {len(links)} links")
     return EXIT_OK
 
