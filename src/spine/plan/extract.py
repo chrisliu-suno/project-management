@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from ..constants import (
+    PLAN_DONE_WEIGHT,
     PLAN_MAX_OPEN_QUESTIONS,
 )
 from ..model import Doc
@@ -156,12 +157,14 @@ def plan_in(*, doc: Doc) -> PlanState:
 def plan_richness(*, state: PlanState) -> int:
     """How much decided plan a document carries.
 
-    Counts items whose status is actually stated: a checklist of a hundred
-    unticked boxes says less about where a project stands than a status table of
-    six rows does.
+    Completed work dominates: a document recording finished items is where the
+    project actually is. Unticked boxes and unreadable rows count for nothing, so
+    a long checklist nobody started cannot outrank a short status table.
     """
-    stated = sum(1 for item in state.items if item.status is not ItemStatus.UNKNOWN)
-    return stated + len(state.milestones)
+    moved = sum(
+        1 for item in state.items if item.status not in (ItemStatus.UNKNOWN, ItemStatus.NOT_STARTED)
+    )
+    return state.done_count * PLAN_DONE_WEIGHT + moved + len(state.milestones)
 
 
 def project_plans(*, docs: tuple[Doc, ...]) -> tuple[tuple[Doc, PlanState], ...]:
