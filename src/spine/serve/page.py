@@ -28,6 +28,11 @@ h2{font-family:var(--mono);font-size:1.15rem;font-weight:600;margin:0}
 .eyebrow{font-family:var(--mono);font-size:.75rem;text-transform:uppercase;
   letter-spacing:.11em;color:var(--faint);margin:0 0 .5rem}
 .sub{color:var(--muted);margin:.35rem 0 0}
+.pending{display:inline-block;margin-top:.7rem;padding:.3rem .6rem;border-radius:999px;
+  background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);
+  font-family:var(--mono);font-size:.78rem;text-decoration:none}
+.pending:hover{filter:brightness(1.08)}
+.pending[hidden]{display:none}
 .card{background:var(--surface);border:1px solid var(--rule);border-radius:2px;
   border-left:3px solid var(--edge,var(--rule));padding:1.25rem 1.4rem;
   display:flex;flex-direction:column;gap:1rem}
@@ -177,17 +182,29 @@ function proposalCard(p){
   return card;
 }
 
+function setPendingCount(n){
+  const badge=document.getElementById('pending');
+  if(!badge)return;
+  badge.textContent=n===1?'1 decision waiting on you':n+' decisions waiting on you';
+  badge.hidden=n===0;
+  document.title=n?'('+n+') spine':'spine';
+}
+
 async function loadProposals(){
   const host=document.getElementById('proposals');host.textContent='';
   try{
     const r=await fetch('/api/proposals');const j=await r.json();
-    if(j.error){host.append(el('p','err',j.error));return}
+    if(j.error){host.append(el('p','err',j.error));setPendingCount(0);return}
+    setPendingCount(j.proposals.length);
     if(!j.proposals.length){
       host.append(el('p','quiet','Nothing waiting. Proposals appear after: spine facts observe, then spine propose generate.'));
       return;
     }
     j.proposals.forEach(p=>host.append(proposalCard(p)));
-  }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
+  }catch(e){
+    setPendingCount(0);
+    host.append(el('p','err','Could not reach the server: '+e.message));
+  }
 }
 
 function postForm(path,fields){
@@ -284,11 +301,12 @@ def render_page() -> str:
     <p class="eyebrow">project context</p>
     <h1>spine</h1>
     <p class="sub">Corpus health per project, and what would be loaded for a task.</p>
+    <a id="pending" class="pending" href="#proposals-card" hidden></a>
   </header>
 
   <div id="projects"></div>
 
-  <section class="card">
+  <section class="card" id="proposals-card">
     <div>
       <p class="eyebrow">needs you</p>
       <h2>Proposed edits</h2>

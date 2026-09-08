@@ -252,3 +252,19 @@ def test_a_post_reads_its_fields_from_the_body(running_server: ThreadingHTTPServ
     )
     assert status == 200
     assert payload["message"]["session_id"] == "s2"
+
+
+def test_the_page_carries_a_pending_decision_badge() -> None:
+    page = render_page()
+    assert 'id="pending"' in page
+    assert 'id="proposals-card"' in page
+
+
+def test_the_badge_starts_hidden_so_a_quiet_queue_shows_nothing() -> None:
+    assert 'id="pending" class="pending" href="#proposals-card" hidden' in render_page()
+
+
+def test_the_badge_is_kept_in_step_with_the_proposal_count() -> None:
+    page = render_page()
+    assert "setPendingCount(j.proposals.length)" in page
+    assert "decisions waiting on you" in page
