@@ -15,9 +15,9 @@ from ..constants import (
 from .api import (
     ERROR_FIELD,
     PROJECTS_FIELD,
+    decide_payload,
     pick_payload,
     projects_payload,
-    decide_payload,
     proposals_payload,
     sessions_payload,
     steer_payload,
@@ -31,6 +31,7 @@ SESSIONS_PATH = "/api/sessions"
 STEER_PATH = "/api/steer"
 PROPOSALS_PATH = "/api/proposals"
 DECIDE_PATH = "/api/decide"
+MUTATING_PATHS = frozenset({STEER_PATH, DECIDE_PATH})
 ID_PARAM = "id"
 ACCEPT_PARAM = "accept"
 ACCEPT_TRUE = "true"
@@ -42,6 +43,8 @@ TASK_PARAM = "task"
 
 HTTP_OK = 200
 HTTP_NOT_FOUND = 404
+HTTP_METHOD_NOT_ALLOWED = 405
+POST_METHOD = "POST"
 JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 HTML_CONTENT_TYPE = "text/html; charset=utf-8"
 RESPONSE_ENCODING = "utf-8"
@@ -73,7 +76,7 @@ def is_dashboard_at(*, host: str, port: int) -> bool:
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
-    """Serves the page and its two read-only JSON endpoints."""
+    """Serves the page, its read-only JSON endpoints, and the two POST routes."""
 
     def log_message(self, *_args: object) -> None:
         return
@@ -111,36 +114,51 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if parsed.path == SESSIONS_PATH:
             self._send_json(status=HTTP_OK, payload=sessions_payload())
             return
-        if parsed.path == STEER_PATH:
-            query = parse_qs(parsed.query)
-            self._send_json(
-                status=HTTP_OK,
-                payload=steer_payload(
-                    session_id=(query.get(SESSION_PARAM) or [""])[0],
-                    action=(query.get(ACTION_PARAM) or [""])[0],
-                    body=(query.get(BODY_PARAM) or [""])[0],
-                ),
-            )
-            return
         if parsed.path == PROPOSALS_PATH:
             self._send_json(status=HTTP_OK, payload=proposals_payload())
             return
-        if parsed.path == DECIDE_PATH:
-            query = parse_qs(parsed.query)
+        if parsed.path in MUTATING_PATHS:
             self._send_json(
-                status=HTTP_OK,
-                payload=decide_payload(
-                    proposal_id=(query.get(ID_PARAM) or [""])[0],
-                    accept=(query.get(ACCEPT_PARAM) or [""])[0] == ACCEPT_TRUE,
-                ),
+                status=HTTP_METHOD_NOT_ALLOWED,
+                payload={ERROR_FIELD: f"{parsed.path} requires {POST_METHOD}"},
             )
             return
         self._send_json(status=HTTP_NOT_FOUND, payload={ERROR_FIELD: f"no route {parsed.path}"})
 
+    def _request_params(self) -> dict[str, list[str]]:
+        """Form-encoded body merged over the query string."""
+        declared_length = self.headers.get("Content-Length")
+        length = int(declared_length) if declared_length and declared_length.isdigit() else 0
+        body = self.rfile.read(length).decode(RESPONSE_ENCODING) if length else ""
+        return {**parse_qs(urlparse(self.path).query), **parse_qs(body)}
 
-def build_server(
-    *, host: str = DASHBOARD_HOST, port: int = DASHBOARD_PORT
-) -> ThreadingHTTPServer:
+    def do_POST(self) -> None:
+        """Only the two routes that change state, so a GET can never mutate."""
+        path = urlparse(self.path).path
+        if path not in MUTATING_PATHS:
+            self._send_json(status=HTTP_NOT_FOUND, payload={ERROR_FIELD: f"no route {path}"})
+            return
+        params = self._request_params()
+        if path == STEER_PATH:
+            self._send_json(
+                status=HTTP_OK,
+                payload=steer_payload(
+                    session_id=(params.get(SESSION_PARAM) or [""])[0],
+                    action=(params.get(ACTION_PARAM) or [""])[0],
+                    body=(params.get(BODY_PARAM) or [""])[0],
+                ),
+            )
+            return
+        self._send_json(
+            status=HTTP_OK,
+            payload=decide_payload(
+                proposal_id=(params.get(ID_PARAM) or [""])[0],
+                accept=(params.get(ACCEPT_PARAM) or [""])[0] == ACCEPT_TRUE,
+            ),
+        )
+
+
+def build_server(*, host: str = DASHBOARD_HOST, port: int = DASHBOARD_PORT) -> ThreadingHTTPServer:
     """A server bound and ready, so tests can drive it without blocking."""
     try:
         return ThreadingHTTPServer((host, port), DashboardHandler)

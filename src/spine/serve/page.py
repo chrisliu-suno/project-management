@@ -156,7 +156,7 @@ async function loadProjects(){
 
 async function decide(id,accept){
   try{
-    const r=await fetch('/api/decide?id='+encodeURIComponent(id)+'&accept='+(accept?'true':'false'));
+    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)+'&accept='+(accept?'true':'false')});
     const j=await r.json();
     if(j.error){alert(j.error);return}
     loadProposals();loadProjects();
@@ -190,10 +190,15 @@ async function loadProposals(){
   }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
 }
 
+function postForm(path,fields){
+  return fetch(path,{method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams(fields).toString()});
+}
+
 async function steer(id,action){
   try{
-    const r=await fetch('/api/steer?session='+encodeURIComponent(id)+
-      '&action='+encodeURIComponent(action));
+    const r=await postForm('/api/steer',{session:id,action:action});
     const j=await r.json();
     if(j.error){alert(j.error);return}
     loadSessions();
@@ -212,8 +217,7 @@ function sessionRow(s){
         if(action==='redirect'){
           const body=prompt('Redirect '+s.session_id+' to:');
           if(!body)return;
-          fetch('/api/steer?session='+encodeURIComponent(s.session_id)+
-            '&action=redirect&body='+encodeURIComponent(body))
+          postForm('/api/steer',{session:s.session_id,action:'redirect',body:body})
             .then(()=>loadSessions()).catch(e=>alert(e.message));
           return;
         }
