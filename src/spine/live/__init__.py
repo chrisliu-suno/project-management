@@ -36,9 +36,7 @@ def _session_id(*, override: str | None) -> str | None:
 def _require_session(*, override: str | None) -> str | None:
     session_id = _session_id(override=override)
     if session_id is None:
-        print(
-            f"no session id: pass --session or set {SPINE_SESSION_ID_ENV_VAR}", file=sys.stderr
-        )
+        print(f"no session id: pass --session or set {SPINE_SESSION_ID_ENV_VAR}", file=sys.stderr)
     return session_id
 
 
@@ -129,7 +127,9 @@ def _add_declare(verbs: argparse._SubParsersAction) -> None:
     parser = verbs.add_parser("declare", help="Say what this session is doing.")
     parser.add_argument("--intent", required=True)
     parser.add_argument("--project", default="", help="Comma-separated project slugs.")
-    parser.add_argument("--path", action="append", help="Repeatable path this session expects to touch.")
+    parser.add_argument(
+        "--path", action="append", help="Repeatable path this session expects to touch."
+    )
     parser.add_argument("--session", default=None)
     parser.set_defaults(handler=_handle_declare)
 

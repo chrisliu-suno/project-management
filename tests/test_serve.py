@@ -264,7 +264,8 @@ def test_the_badge_starts_hidden_so_a_quiet_queue_shows_nothing() -> None:
     assert 'id="pending" class="pending" href="#proposals-card" hidden' in render_page()
 
 
-def test_the_badge_is_kept_in_step_with_the_proposal_count() -> None:
+def test_the_badge_counts_proposals_and_decisions_together() -> None:
     page = render_page()
-    assert "setPendingCount(j.proposals.length)" in page
+    assert "refreshPendingTotal" in page
+    assert "(p.proposals||[]).length+(d.decisions||[]).length" in page
     assert "decisions waiting on you" in page

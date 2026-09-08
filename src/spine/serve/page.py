@@ -86,6 +86,17 @@ button:hover{opacity:.9}
   background:var(--surface);color:var(--muted);border:1px solid var(--rule)}
 .acts button:hover{color:var(--ink);border-color:var(--accent)}
 .quiet{color:var(--faint);font-size:.875rem}
+.drow{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;padding:.5rem .7rem;
+  background:var(--sunk);border-radius:2px}
+.dtitle{flex:1;font-size:.875rem;min-width:14rem}
+.dproj{font-family:var(--mono);font-size:.7rem;color:var(--faint)}
+.ackbtn{padding:.25rem .6rem;font-size:.72rem;font-weight:500;
+  background:var(--surface);color:var(--muted);border:1px solid var(--rule)}
+.ackbtn:hover{color:var(--ink);border-color:var(--accent)}
+.crow{padding:.5rem .7rem;background:var(--problem-soft);border-radius:2px;
+  border-left:3px solid var(--problem);margin-bottom:.4rem}
+.cpath{font-family:var(--mono);font-size:.8rem;font-weight:600}
+.cwho{font-size:.75rem;color:var(--muted)}
 .plan{background:var(--sunk);border-radius:2px;padding:.75rem .9rem;
   display:flex;flex-direction:column;gap:.4rem}
 .plan .eyebrow{margin:0}
@@ -218,6 +229,14 @@ function proposalCard(p){
   return card;
 }
 
+async function refreshPendingTotal(){
+  try{
+    const [p,d]=await Promise.all([fetch('/api/proposals').then(r=>r.json()),
+                                   fetch('/api/decisions').then(r=>r.json())]);
+    setPendingCount((p.proposals||[]).length+(d.decisions||[]).length);
+  }catch(e){}
+}
+
 function setPendingCount(n){
   const badge=document.getElementById('pending');
   if(!badge)return;
@@ -226,12 +245,48 @@ function setPendingCount(n){
   document.title=n?'('+n+') spine':'spine';
 }
 
+async function loadDecisions(){
+  const host=document.getElementById('decisions');host.textContent='';
+  try{
+    const r=await fetch('/api/decisions');const j=await r.json();
+    if(j.error){host.append(el('p','err',j.error));return}
+    if(!j.decisions.length){host.append(el('p','quiet','Nothing logged since you last looked.'));return}
+    j.decisions.forEach(d=>{
+      const row=el('div','drow');
+      row.append(el('span','dtitle',d.title),el('span','dproj',d.project_slug));
+      const b=document.createElement('button');b.type='button';b.className='ackbtn';
+      b.textContent='Got it';
+      b.addEventListener('click',async()=>{
+        await postForm('/api/ack',{id:d.entry_id});loadDecisions();refreshPendingTotal();
+      });
+      row.append(b);host.append(row);
+    });
+  }catch(e){host.append(el('p','err','Could not reach the server: '+e.message))}
+}
+
+async function loadCollisions(){
+  const host=document.getElementById('collisions');
+  const card=document.getElementById('collisions-card');
+  host.textContent='';
+  try{
+    const r=await fetch('/api/collisions');const j=await r.json();
+    const rows=j.collisions||[];
+    card.hidden=!rows.length;
+    rows.forEach(c=>{
+      const row=el('div','crow');
+      row.append(el('div','cpath',c.path),
+        el('div','cwho',c.left_session_id+' and '+c.right_session_id+' · '+c.project_slug));
+      host.append(row);
+    });
+  }catch(e){card.hidden=false;host.append(el('p','err',e.message))}
+}
+
 async function loadProposals(){
   const host=document.getElementById('proposals');host.textContent='';
   try{
     const r=await fetch('/api/proposals');const j=await r.json();
-    if(j.error){host.append(el('p','err',j.error));setPendingCount(0);return}
-    setPendingCount(j.proposals.length);
+    if(j.error){host.append(el('p','err',j.error));return}
+    refreshPendingTotal();
     if(!j.proposals.length){
       host.append(el('p','quiet','Nothing waiting. Proposals appear after: spine facts observe, then spine propose generate.'));
       return;
@@ -318,6 +373,8 @@ document.getElementById('pickform').addEventListener('submit',runPick);
 loadProjects();
 loadSessions();
 loadProposals();
+loadDecisions();
+loadCollisions();
 """
 
 
@@ -348,6 +405,22 @@ def render_page() -> str:
       <h2>Proposed edits</h2>
     </div>
     <div id="proposals"><p class="quiet">Loading...</p></div>
+  </section>
+
+  <section class="card" id="decisions-card">
+    <div>
+      <p class="eyebrow">needs you</p>
+      <h2>Decisions logged</h2>
+    </div>
+    <div id="decisions"><p class="quiet">Loading...</p></div>
+  </section>
+
+  <section class="card" id="collisions-card" hidden>
+    <div>
+      <p class="eyebrow">needs you</p>
+      <h2>Sessions colliding</h2>
+    </div>
+    <div id="collisions"></div>
   </section>
 
   <section class="card">

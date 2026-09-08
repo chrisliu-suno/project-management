@@ -15,7 +15,10 @@ from ..constants import (
 from .api import (
     ERROR_FIELD,
     PROJECTS_FIELD,
+    ack_payload,
+    collisions_payload,
     decide_payload,
+    decisions_payload,
     pick_payload,
     projects_payload,
     proposals_payload,
@@ -31,7 +34,10 @@ SESSIONS_PATH = "/api/sessions"
 STEER_PATH = "/api/steer"
 PROPOSALS_PATH = "/api/proposals"
 DECIDE_PATH = "/api/decide"
-MUTATING_PATHS = frozenset({STEER_PATH, DECIDE_PATH})
+COLLISIONS_PATH = "/api/collisions"
+DECISIONS_PATH = "/api/decisions"
+ACK_PATH = "/api/ack"
+MUTATING_PATHS = frozenset({STEER_PATH, DECIDE_PATH, ACK_PATH})
 ID_PARAM = "id"
 ACCEPT_PARAM = "accept"
 ACCEPT_TRUE = "true"
@@ -117,6 +123,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if parsed.path == PROPOSALS_PATH:
             self._send_json(status=HTTP_OK, payload=proposals_payload())
             return
+        if parsed.path == COLLISIONS_PATH:
+            self._send_json(status=HTTP_OK, payload=collisions_payload())
+            return
+        if parsed.path == DECISIONS_PATH:
+            self._send_json(status=HTTP_OK, payload=decisions_payload())
+            return
         if parsed.path in MUTATING_PATHS:
             self._send_json(
                 status=HTTP_METHOD_NOT_ALLOWED,
@@ -139,6 +151,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json(status=HTTP_NOT_FOUND, payload={ERROR_FIELD: f"no route {path}"})
             return
         params = self._request_params()
+        if path == ACK_PATH:
+            self._send_json(
+                status=HTTP_OK, payload=ack_payload(entry_id=(params.get(ID_PARAM) or [""])[0])
+            )
+            return
         if path == STEER_PATH:
             self._send_json(
                 status=HTTP_OK,
