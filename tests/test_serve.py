@@ -8,7 +8,9 @@ import socket
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 import pytest
 
@@ -48,6 +50,25 @@ def _get(*, server: ThreadingHTTPServer, path: str):
         return response.status, json.loads(response.read().decode("utf-8"))
 
 
+def _post(*, server: ThreadingHTTPServer, path: str, fields: dict[str, str]):
+    request = Request(
+        _base_url(server=server) + path,
+        data=urlencode(fields).encode("utf-8"),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urlopen(request) as response:
+        return response.status, json.loads(response.read().decode("utf-8"))
+
+
+def _status_of_get(*, server: ThreadingHTTPServer, path: str) -> int:
+    try:
+        _get(server=server, path=path)
+    except HTTPError as refused:
+        return refused.code
+    return 200
+
+
 def test_projects_payload_always_carries_the_projects_key() -> None:
     assert PROJECTS_FIELD in projects_payload()
 
@@ -58,7 +79,9 @@ def test_an_empty_task_is_an_error_not_a_selection() -> None:
 
 
 def test_an_unknown_project_is_an_error_not_a_crash() -> None:
-    payload = pick_payload(project_slug=UNKNOWN_SLUG, task="do a thing", budget=DASHBOARD_PICK_BUDGET)
+    payload = pick_payload(
+        project_slug=UNKNOWN_SLUG, task="do a thing", budget=DASHBOARD_PICK_BUDGET
+    )
     assert ERROR_FIELD in payload
 
 
@@ -161,19 +184,25 @@ def test_the_sessions_route_answers_json(running_server: ThreadingHTTPServer) ->
 
 
 def test_steering_an_unnamed_session_is_an_error(running_server: ThreadingHTTPServer) -> None:
-    status, payload = _get(server=running_server, path="/api/steer?session=&action=stop")
+    status, payload = _post(
+        server=running_server, path="/api/steer", fields={"session": "", "action": "stop"}
+    )
     assert status == 200
     assert ERROR_FIELD in payload
 
 
 def test_an_unknown_steering_action_is_an_error(running_server: ThreadingHTTPServer) -> None:
-    status, payload = _get(server=running_server, path="/api/steer?session=s1&action=explode")
+    status, payload = _post(
+        server=running_server, path="/api/steer", fields={"session": "s1", "action": "explode"}
+    )
     assert status == 200
     assert ERROR_FIELD in payload
 
 
 def test_steering_a_session_succeeds(running_server: ThreadingHTTPServer) -> None:
-    status, payload = _get(server=running_server, path="/api/steer?session=s1&action=pause")
+    status, payload = _post(
+        server=running_server, path="/api/steer", fields={"session": "s1", "action": "pause"}
+    )
     assert status == 200
     assert payload.get("ok") is True
 
@@ -185,12 +214,41 @@ def test_the_proposals_route_answers_json(running_server: ThreadingHTTPServer) -
 
 
 def test_deciding_an_unnamed_proposal_is_an_error(running_server: ThreadingHTTPServer) -> None:
-    status, payload = _get(server=running_server, path="/api/decide?id=&accept=true")
+    status, payload = _post(
+        server=running_server, path="/api/decide", fields={"id": "", "accept": "true"}
+    )
     assert status == 200
     assert ERROR_FIELD in payload
 
 
 def test_deciding_an_unknown_proposal_is_an_error(running_server: ThreadingHTTPServer) -> None:
-    status, payload = _get(server=running_server, path="/api/decide?id=nope&accept=true")
+    status, payload = _post(
+        server=running_server, path="/api/decide", fields={"id": "nope", "accept": "true"}
+    )
     assert status == 200
     assert ERROR_FIELD in payload
+
+
+def test_steering_over_get_is_refused(running_server: ThreadingHTTPServer) -> None:
+    assert _status_of_get(server=running_server, path="/api/steer?session=s1&action=stop") == 405
+
+
+def test_deciding_over_get_is_refused(running_server: ThreadingHTTPServer) -> None:
+    assert _status_of_get(server=running_server, path="/api/decide?id=x&accept=true") == 405
+
+
+def test_posting_to_an_unknown_route_is_a_404(running_server: ThreadingHTTPServer) -> None:
+    try:
+        _post(server=running_server, path="/api/nope", fields={})
+    except HTTPError as refused:
+        assert refused.code == 404
+        return
+    raise AssertionError("expected a 404")
+
+
+def test_a_post_reads_its_fields_from_the_body(running_server: ThreadingHTTPServer) -> None:
+    status, payload = _post(
+        server=running_server, path="/api/steer", fields={"session": "s2", "action": "pause"}
+    )
+    assert status == 200
+    assert payload["message"]["session_id"] == "s2"
