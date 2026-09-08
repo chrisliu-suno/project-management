@@ -34,12 +34,26 @@ def _render_doc(*, doc: Doc) -> str:
     return f"## {doc.title}\n\n_{doc.doc_id} · {doc.kind}_\n\n{doc.body.strip()}"
 
 
+def _plan_block(*, docs: tuple[Doc, ...], project: Project) -> str:
+    """Where the project stands, when its documents say."""
+    from ..plan import open_questions_across, primary_plan
+    from ..plan.render import render_plan
+
+    return render_plan(
+        state=primary_plan(docs=docs, project_slug=project.slug),
+        open_questions=open_questions_across(docs=docs),
+    )
+
+
 def render_project(*, project: Project, docs: tuple[Doc, ...], budget: int) -> str:
-    """One project's always-read documents, trimmed to the budget."""
+    """One project's plan position and always-read documents, trimmed to the budget."""
     selected, was_truncated = _within_budget(docs=always_read(docs=docs), budget=budget)
-    if not selected:
+    plan = _plan_block(docs=docs, project=project)
+    if not selected and not plan:
         return ""
     blocks = [f"## Project: {project.name} (`{project.slug}`)"]
+    if plan:
+        blocks.append(plan)
     blocks.extend(_render_doc(doc=doc) for doc in selected)
     if was_truncated:
         blocks.append(TRUNCATION_NOTE)

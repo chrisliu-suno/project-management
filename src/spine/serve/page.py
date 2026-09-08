@@ -86,6 +86,19 @@ button:hover{opacity:.9}
   background:var(--surface);color:var(--muted);border:1px solid var(--rule)}
 .acts button:hover{color:var(--ink);border-color:var(--accent)}
 .quiet{color:var(--faint);font-size:.875rem}
+.plan{background:var(--sunk);border-radius:2px;padding:.75rem .9rem;
+  display:flex;flex-direction:column;gap:.4rem}
+.plan .eyebrow{margin:0}
+.pmile{font-family:var(--mono);font-size:.85rem;font-weight:600;
+  display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap}
+.ptarget{font-size:.7rem;color:var(--warn);border:1px solid var(--warn);
+  border-radius:999px;padding:.05em .5em;font-weight:500}
+.pbar{height:4px;background:var(--rule);border-radius:999px;overflow:hidden}
+.pfill{height:100%;background:var(--ok)}
+.pcount{font-family:var(--mono);font-size:.72rem;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.pblocked{font-size:.8rem;color:var(--problem)}
+.pq{font-size:.78rem;color:var(--muted)}
 .prop{border:1px solid var(--rule);border-left:3px solid var(--accent);
   border-radius:2px;padding:.9rem 1rem;display:flex;flex-direction:column;gap:.5rem}
 .prop h3{font-size:.95rem;margin:0}
@@ -116,6 +129,28 @@ function findingRow(f){
   li.append(body);return li;
 }
 
+function planBlock(plan){
+  const box=el('div','plan');
+  box.append(el('p','eyebrow','where this sits'));
+  if(plan.current_milestone){
+    const m=(plan.milestones||[]).find(x=>x.title===plan.current_milestone)||{};
+    const pos=m.ordinal!==undefined?' ('+(m.ordinal+1)+' of '+plan.milestones.length+')':'';
+    const line=el('div','pmile',plan.current_milestone+pos);
+    if(m.target)line.append(el('span','ptarget','target '+m.target));
+    box.append(line);
+  }
+  if(plan.item_count){
+    const done=plan.done_count||0;
+    const bar=el('div','pbar');
+    const fill=el('div','pfill');fill.style.width=Math.round(done/plan.item_count*100)+'%';
+    bar.append(fill);
+    box.append(bar,el('div','pcount',done+' of '+plan.item_count+' tracked items done'));
+  }
+  (plan.blocked||[]).slice(0,2).forEach(b=>box.append(el('div','pblocked','blocked: '+b.title)));
+  (plan.open_questions||[]).slice(0,3).forEach(q=>box.append(el('div','pq','? '+q)));
+  return box;
+}
+
 function projectCard(p){
   const card=el('section','card '+p.worst_severity);
   const head=el('div','cardhead');
@@ -127,6 +162,7 @@ function projectCard(p){
   m.append(metric('docs',p.doc_count),metric('entries',p.entry_count),
     metric('links',p.link_count),metric('lines',p.total_lines));
   card.append(m);
+  if(p.plan&&(p.plan.current_milestone||p.plan.item_count))card.append(planBlock(p.plan));
   const t=el('div','tallies');
   Object.entries(p.read_when_counts).forEach(([k,v])=>t.append(el('span','tally',k+' '+v)));
   Object.entries(p.kind_counts).forEach(([k,v])=>t.append(el('span','tally',k+' '+v)));

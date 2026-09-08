@@ -46,6 +46,7 @@ class ProjectSnapshot:
     kind_counts: dict[str, int] = field(default_factory=dict)
     read_when_counts: dict[str, int] = field(default_factory=dict)
     findings: tuple[Finding, ...] = ()
+    plan: dict[str, object] = field(default_factory=dict)
 
     @property
     def worst_severity(self) -> Severity:
@@ -64,6 +65,7 @@ class ProjectSnapshot:
             "entry_count": self.entry_count,
             "link_count": self.link_count,
             "total_lines": self.total_lines,
+            "plan": self.plan,
             "kind_counts": dict(self.kind_counts),
             "read_when_counts": dict(self.read_when_counts),
             "worst_severity": str(self.worst_severity),
@@ -89,5 +91,6 @@ class PickPreview:
             "chosen": [dict(entry) for entry in self.chosen],
             "dropped": [dict(entry) for entry in self.dropped],
             "total_lines": self.total_lines,
+            "plan": self.plan,
             "reason": self.reason,
         }

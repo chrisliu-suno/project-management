@@ -49,6 +49,17 @@ def _drift(*, project: Project) -> tuple[Finding, ...]:
         return ()
 
 
+def _plan_summary(*, docs, project: Project) -> dict[str, object]:
+    """Where the project stands, for the dashboard card."""
+    from ..plan import open_questions_across, primary_plan
+
+    state = primary_plan(docs=docs, project_slug=project.slug)
+    summary = state.as_dict()
+    summary["open_questions"] = list(open_questions_across(docs=docs))
+    summary["blocked"] = [item.as_dict() for item in state.blocked]
+    return summary
+
+
 def build_snapshot(*, project: Project) -> ProjectSnapshot:
     """One project's counts and findings, or a problem snapshot if its docs are gone."""
     if not project.docs_dir.is_dir():
@@ -67,6 +78,7 @@ def build_snapshot(*, project: Project) -> ProjectSnapshot:
         kind_counts=_counts_by(docs=docs, attribute="kind"),
         read_when_counts=_counts_by(docs=docs, attribute="read_when"),
         findings=all_findings(docs=docs, links=links) + _drift(project=project),
+        plan=_plan_summary(docs=docs, project=project),
     )
 
 
