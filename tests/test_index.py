@@ -411,3 +411,40 @@ def test_index_help_is_reachable() -> None:
     with pytest.raises(SystemExit) as exit_info:
         build_parser().parse_args(["index", "--help"])
     assert exit_info.value.code == 0
+
+
+METADATA_BLOCK = (
+    "**Status:** Proposed **Date:** 2026-06-17 **Deciders:** several people here "
+    "**Inputs:** `permissions-v2-prd-product.md` (authoritative product), "
+    "`permissions-v2-design.md` (model-superseded grounding), and more names padded "
+    "out so this run of text is longer than a claim about one document would ever be, "
+    "which is exactly the shape a metadata header takes when it carries no full stop"
+)
+
+
+def test_a_metadata_block_asserts_no_typed_relation() -> None:
+    target = make_doc(stem="permissions-v2-design", body="# D\n\nProse.")
+    source = make_doc(stem="adr", body=METADATA_BLOCK)
+    links = extract_from(doc=source, corpus=(source, target))
+    assert all(link.link_type is not LinkType.SUPERSEDES for link in links)
+
+
+def test_a_metadata_block_still_records_the_plain_mention() -> None:
+    target = make_doc(stem="permissions-v2-design", body="# D\n\nProse.")
+    source = make_doc(stem="adr", body=METADATA_BLOCK)
+    links = extract_from(doc=source, corpus=(source, target))
+    assert any(link.dst_id.endswith("permissions-v2-design") for link in links)
+
+
+def test_a_short_supersedes_claim_is_still_read() -> None:
+    target = make_doc(stem="permissions-v2-design", body="# D\n\nProse.")
+    source = make_doc(stem="adr", body="Supersedes `permissions-v2-design.md` outright.")
+    links = extract_from(doc=source, corpus=(source, target))
+    assert any(link.link_type is LinkType.SUPERSEDES for link in links)
+
+
+def test_the_claim_length_gate_is_measured_in_characters() -> None:
+    from spine.index.extract import carries_a_claim
+
+    assert carries_a_claim(sentence="short claim")
+    assert not carries_a_claim(sentence="x" * 400)

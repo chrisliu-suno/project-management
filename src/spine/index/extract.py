@@ -6,7 +6,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..constants import ENTRY_ANCHOR_SEPARATOR, TEXTUAL_LINK_CONFIDENCE
+from ..constants import (
+    ENTRY_ANCHOR_SEPARATOR,
+    MAX_PHRASING_SENTENCE_CHARS,
+    TEXTUAL_LINK_CONFIDENCE,
+)
 from ..docs.entries import slugify_heading
 from ..model import Doc, DocKind, Link, LinkType
 from .backlinks import deduplicate_links
@@ -141,7 +145,19 @@ def _referenced_doc_ids(*, sentence: str, index: FileNameIndex) -> tuple[str, ..
     return tuple(ordered)
 
 
+def carries_a_claim(*, sentence: str) -> bool:
+    """Whether a run of text is short enough to be a claim about one document.
+
+    A metadata block with no terminal punctuation joins into one long run that
+    mentions several documents and often a cue word. Reading a typed relation out
+    of that invents relations nobody asserted.
+    """
+    return len(sentence) <= MAX_PHRASING_SENTENCE_CHARS
+
+
 def _match_phrasing(*, sentence: str, rules: PhrasingRules) -> LinkType | None:
+    if not carries_a_claim(sentence=sentence):
+        return None
     for pattern, link_type in rules:
         if pattern.search(sentence):
             return link_type
