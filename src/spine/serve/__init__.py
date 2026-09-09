@@ -34,8 +34,7 @@ def _handle_serve(args: argparse.Namespace) -> int:
             print(f"dashboard already running on http://{busy.host}:{busy.port}")
         else:
             print(
-                f"port {busy.port} is taken by something else; "
-                f"start elsewhere with --port",
+                f"port {busy.port} is taken by something else; start elsewhere with --port",
                 file=sys.stderr,
             )
         return EXIT_PORT_IN_USE
