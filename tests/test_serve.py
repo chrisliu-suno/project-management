@@ -85,11 +85,21 @@ def test_an_unknown_project_is_an_error_not_a_crash() -> None:
     assert ERROR_FIELD in payload
 
 
+SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+
+
 def test_the_page_references_nothing_external() -> None:
-    page = render_page()
+    """The SVG namespace is an identifier, never fetched, so it is not a reference."""
+    page = render_page().replace(SVG_NAMESPACE, "")
     assert "http://" not in page
     assert "https://" not in page
-    assert "<!doctype html>" in page.lower()
+    assert "<!doctype html>" in render_page().lower()
+
+
+def test_the_page_loads_no_remote_asset() -> None:
+    page = render_page()
+    for attribute in ("src=", "<link", "@import", "url("):
+        assert attribute not in page
 
 
 def test_the_page_closes_its_document() -> None:

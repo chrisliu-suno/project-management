@@ -110,6 +110,10 @@ button:hover{opacity:.9}
   font-variant-numeric:tabular-nums}
 .pblocked{font-size:.8rem;color:var(--problem)}
 .pq{font-size:.78rem;color:var(--muted)}
+.spark{display:flex;align-items:center;gap:.6rem;color:var(--accent)}
+.spark svg{width:200px;height:28px;flex-shrink:0}
+.sparklabel{font-family:var(--mono);font-size:.7rem;color:var(--muted);
+  font-variant-numeric:tabular-nums}
 .prop{border:1px solid var(--rule);border-left:3px solid var(--accent);
   border-radius:2px;padding:.9rem 1rem;display:flex;flex-direction:column;gap:.5rem}
 .prop h3{font-size:.95rem;margin:0}
@@ -140,6 +144,26 @@ function findingRow(f){
   li.append(body);return li;
 }
 
+function burndown(points){
+  const wrap=el('div','spark');
+  const w=200,h=28,n=points.length;
+  const most=Math.max(...points.map(p=>p.item_count),1);
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 '+w+' '+h);
+  svg.setAttribute('role','img');
+  const first=points[0],last=points[points.length-1];
+  svg.setAttribute('aria-label','remaining went from '+first.remaining+' to '+last.remaining+
+    ' across '+n+' readings');
+  const xy=points.map((p,i)=>[(n<2?0:i/(n-1))*w, h-(p.remaining/most)*h]);
+  const line=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  line.setAttribute('points',xy.map(([x,y])=>x.toFixed(1)+','+y.toFixed(1)).join(' '));
+  line.setAttribute('fill','none');line.setAttribute('stroke','currentColor');
+  line.setAttribute('stroke-width','1.5');
+  svg.append(line);
+  wrap.append(svg,el('span','sparklabel',first.remaining+' \u2192 '+last.remaining+' left'));
+  return wrap;
+}
+
 function planBlock(plan){
   const box=el('div','plan');
   box.append(el('p','eyebrow','where this sits'));
@@ -157,6 +181,7 @@ function planBlock(plan){
     bar.append(fill);
     box.append(bar,el('div','pcount',done+' of '+plan.item_count+' tracked items done'));
   }
+  if((plan.history||[]).length>1)box.append(burndown(plan.history));
   (plan.blocked||[]).slice(0,2).forEach(b=>box.append(el('div','pblocked','blocked: '+b.title)));
   (plan.open_questions||[]).slice(0,3).forEach(q=>box.append(el('div','pq','? '+q)));
   return box;

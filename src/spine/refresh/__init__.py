@@ -27,6 +27,7 @@ class ProjectRefresh:
     fact_count: int
     proposals_queued: int
     decisions_found: int = 0
+    plan_moved: bool = False
     error: str | None = None
 
     def as_line(self) -> str:
@@ -39,15 +40,17 @@ class ProjectRefresh:
                 f"{self.fact_count} facts",
                 f"{self.proposals_queued} new proposal(s)",
                 f"{self.decisions_found} new decision(s)",
+                "plan moved" if self.plan_moved else "plan unchanged",
             )
         )
 
 
 def refresh_project(*, project) -> ProjectRefresh:
     """Observe what shipped, rebuild the graph, then draft any new proposals."""
+    from ..decisions import record_for_project
     from ..facts import FactStore, observe_project
     from ..index import build_project
-    from ..decisions import record_for_project
+    from ..plan.history import record_for_project as record_plan_point
     from ..proposals import generate_for_project
 
     try:
@@ -55,6 +58,7 @@ def refresh_project(*, project) -> ProjectRefresh:
         docs, _ = build_project(docs_dir=project.docs_dir, project_slug=project.slug)
         queued = generate_for_project(project=project)
         decisions = record_for_project(project=project)
+        plan_moved = record_plan_point(project=project)
     except Exception as cause:  # noqa: BLE001 - one bad project must not abort the sweep
         return ProjectRefresh(
             slug=project.slug, doc_count=0, fact_count=0, proposals_queued=0, error=str(cause)
@@ -65,6 +69,7 @@ def refresh_project(*, project) -> ProjectRefresh:
         fact_count=len(FactStore().for_project(project_slug=project.slug)),
         proposals_queued=queued,
         decisions_found=decisions,
+        plan_moved=plan_moved,
     )
 
 

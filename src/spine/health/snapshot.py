@@ -52,9 +52,16 @@ def _drift(*, project: Project) -> tuple[Finding, ...]:
 def _plan_summary(*, docs, project: Project) -> dict[str, object]:
     """Where the project stands, for the dashboard card."""
     from ..plan import open_questions_across, primary_plan
+    from ..plan.history import PlanHistoryStore
 
     state = primary_plan(docs=docs, project_slug=project.slug)
     summary = state.as_dict()
+    try:
+        summary["history"] = [
+            point.as_dict() for point in PlanHistoryStore().series(project_slug=project.slug)
+        ]
+    except Exception:  # noqa: BLE001 - a missing history must not blank the card
+        summary["history"] = []
     summary["open_questions"] = list(open_questions_across(docs=docs))
     summary["blocked"] = [item.as_dict() for item in state.blocked]
     return summary

@@ -76,6 +76,32 @@ def _handle_sources(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _handle_history(args: argparse.Namespace) -> int:
+    from .history import PlanHistoryStore
+
+    project, _ = _corpus_for(slug=args.project)
+    if project is None:
+        print(f"no project registered under {args.project!r}", file=sys.stderr)
+        return EXIT_UNKNOWN_PROJECT
+    series = PlanHistoryStore().series(project_slug=project.slug)
+    if not series:
+        print(f"{project.slug}: no readings yet; `spine refresh` takes one", file=sys.stderr)
+        return EXIT_OK
+    for point in series:
+        print(
+            FIELD_SEPARATOR.join(
+                (
+                    point.taken_at[:16],
+                    f"{point.done_count}/{point.item_count} done",
+                    f"{point.remaining} left",
+                    f"{point.blocked_count} blocked",
+                    point.milestone or "-",
+                )
+            )
+        )
+    return EXIT_OK
+
+
 def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     """Attach `spine plan` to the CLI."""
     parser = subparsers.add_parser("plan", help="Where a project stands, read from its documents.")
@@ -88,3 +114,7 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     sources = verbs.add_parser("sources", help="Which documents state a plan, richest first.")
     sources.add_argument("--project", required=True)
     sources.set_defaults(handler=_handle_sources)
+
+    history = verbs.add_parser("history", help="How the plan moved over time.")
+    history.add_argument("--project", required=True)
+    history.set_defaults(handler=_handle_history)

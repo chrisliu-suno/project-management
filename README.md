@@ -53,7 +53,12 @@ stating the most decided status — is what a session is told about.
 ```sh
 spine plan show --project my-project      # current milestone, progress, open work
 spine plan sources --project my-project   # which documents state a plan, richest first
+spine plan history --project my-project   # how it moved, one row per change
 ```
+
+History is recorded by the same hourly sweep. A reading that repeats the last one is
+dropped, so the series holds only the points where something moved, and the dashboard
+draws a burn-down of remaining items once there are two of them.
 
 The current milestone and open items are injected into every session on that project, and the
 dashboard shows them per project card.
@@ -131,6 +136,8 @@ Everything derived lives under `$SPINE_HOME` (defaults to `$XDG_STATE_HOME/spine
 | `facts.sqlite3` | observed commits and merged pull requests per project |
 | `live_sessions.sqlite3` | declared sessions, steering queue, leases |
 | `proposals.sqlite3` | proposed edits and how each was decided |
+| `decisions.sqlite3` | logged decisions and whether they were acknowledged |
+| `plan_history.sqlite3` | one row per change in a project's plan state |
 
 Documents themselves stay in each project's own directory, outside any repo, so they survive
 branch switches and concurrent agents.
