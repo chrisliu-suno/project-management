@@ -33,6 +33,7 @@ __all__ = [
 
 EXIT_EMPTY_CORPUS = 1
 
+
 def load_corpus(*, docs_dir: Path, project_slug: str) -> tuple[Doc, ...]:
     """Every document in a corpus directory, plus an entry node per log section.
 
@@ -54,9 +55,7 @@ def build_links(*, docs: tuple[Doc, ...]) -> tuple[Link, ...]:
     return deduplicate_links(links=tuple(found))
 
 
-def build_project(
-    *, docs_dir: Path, project_slug: str
-) -> tuple[tuple[Doc, ...], tuple[Link, ...]]:
+def build_project(*, docs_dir: Path, project_slug: str) -> tuple[tuple[Doc, ...], tuple[Link, ...]]:
     """Load a corpus, extract its links, and replace the stored graph for that project."""
     docs = load_corpus(docs_dir=docs_dir, project_slug=project_slug)
     if not docs:
