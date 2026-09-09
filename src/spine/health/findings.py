@@ -13,6 +13,7 @@ from ..constants import (
 from ..dashboard import Finding, Severity
 from ..docs.limits import find_cap_breaches
 from ..model import Doc, DocKind, Link, LinkType, ReadWhen
+from .onboarding import onboarding_findings
 
 AGENT_SUFFIX_SEPARATOR = "--"
 CITATION_EXCLUDED_TYPE = LinkType.CITED_BY
@@ -233,4 +234,5 @@ def all_findings(*, docs: tuple[Doc, ...], links: tuple[Link, ...]) -> tuple[Fin
         *duplicate_findings(docs=docs),
         *orphan_findings(docs=docs, links=links),
         *cap_breach_findings(docs=docs),
+        *onboarding_findings(docs=docs, links=links),
     )
