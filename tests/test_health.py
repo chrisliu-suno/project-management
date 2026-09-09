@@ -158,3 +158,60 @@ def test_cli_exposes_the_health_subcommand() -> None:
 
     parsed = build_parser().parse_args(["health", "check"])
     assert parsed.handler is not None
+
+
+SHARED_BODY = "# Audit\n\n" + "".join(f"finding {n} holds\n" for n in range(20))
+DIVERGENT_BODY = "# Audit\n\n" + "".join(f"different point {n}\n" for n in range(20))
+
+
+def test_documents_sharing_a_title_and_their_content_are_duplicates() -> None:
+    from spine.health.findings import duplicate_findings
+
+    docs = (
+        _doc(stem="a", title="Clip access audit", body=SHARED_BODY),
+        _doc(stem="b", title="Clip access audit", body=SHARED_BODY),
+    )
+    codes = [finding.code for finding in duplicate_findings(docs=docs)]
+    assert codes == ["duplicate_titles"]
+
+
+def test_documents_sharing_only_a_title_are_not_duplicates() -> None:
+    from spine.health.findings import duplicate_findings
+
+    docs = (
+        _doc(stem="a", title="Clip access audit", body=SHARED_BODY),
+        _doc(stem="b", title="Clip access audit", body=DIVERGENT_BODY),
+    )
+    found = duplicate_findings(docs=docs)
+    assert [finding.code for finding in found] == ["same_title"]
+    assert "Retitle" in found[0].detail
+
+
+def test_a_same_title_finding_does_not_advise_deletion() -> None:
+    from spine.health.findings import duplicate_findings
+
+    docs = (
+        _doc(stem="a", title="Same", body=SHARED_BODY),
+        _doc(stem="b", title="Same", body=DIVERGENT_BODY),
+    )
+    assert "delete" not in duplicate_findings(docs=docs)[0].detail.lower()
+
+
+def test_overlap_of_identical_bodies_is_total() -> None:
+    from spine.health.findings import body_overlap
+
+    left = _doc(stem="a", body=SHARED_BODY)
+    assert body_overlap(left=left, right=_doc(stem="b", body=SHARED_BODY)) == 1.0
+
+
+def test_overlap_with_an_empty_body_is_zero() -> None:
+    from spine.health.findings import body_overlap
+
+    assert body_overlap(left=_doc(stem="a", body=""), right=_doc(stem="b")) == 0.0
+
+
+def test_a_short_document_inside_a_long_one_counts_as_overlapping() -> None:
+    from spine.health.findings import body_overlap
+
+    short = _doc(stem="a", body="finding 1 holds\nfinding 2 holds")
+    assert body_overlap(left=short, right=_doc(stem="b", body=SHARED_BODY)) == 1.0
