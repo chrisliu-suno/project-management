@@ -146,6 +146,31 @@ def test_supersedes_phrasing_points_at_the_replaced_doc() -> None:
     ]
 
 
+def test_a_bare_participle_is_not_a_supersession_claim() -> None:
+    """"marked superseded" states the target's state; the citing doc replaces nothing."""
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="tracker",
+        body="`design-scheduler.md` \u00a74.4 marked superseded.",
+        kind=DocKind.DECISION_LOG,
+        read_when=ReadWhen.LOG,
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert not any(link.link_type is LinkType.SUPERSEDES for link in links)
+
+
+def test_a_participle_split_from_its_by_is_not_a_supersession_claim() -> None:
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="tracker",
+        body="`design-scheduler.md` \u2014 superseded in direction by the EA-170 doc.",
+        kind=DocKind.DECISION_LOG,
+        read_when=ReadWhen.LOG,
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert not any(link.link_type is LinkType.SUPERSEDES for link in links)
+
+
 def test_superseded_by_phrasing_inverts_the_direction() -> None:
     target = make_doc(stem="design-scheduler", body="Allocator notes.")
     source = make_doc(

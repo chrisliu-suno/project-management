@@ -15,6 +15,7 @@ from spine.health.findings import (
     every_time_findings,
     orphan_findings,
     unclassified_findings,
+    unrecognised_frontmatter_findings,
 )
 from spine.health.snapshot import build_snapshot
 from spine.model import Doc, DocKind, Link, LinkType, Project, ReadWhen
@@ -36,6 +37,7 @@ def _doc(
     title: str | None = None,
     body: str = "# Title\n\nProse.",
     parent: str | None = None,
+    frontmatter: dict[str, object] | None = None,
 ) -> Doc:
     return Doc(
         doc_id=f"{PROJECT_SLUG}:{stem}",
@@ -46,6 +48,7 @@ def _doc(
         body=body,
         project_slug=PROJECT_SLUG,
         parent_doc_id=parent,
+        frontmatter=frontmatter if frontmatter is not None else {},
     )
 
 
@@ -98,6 +101,38 @@ def test_orphans_are_documents_nothing_points_at() -> None:
     )
     found = orphan_findings(docs=docs, links=links)
     assert found[0].doc_ids == (f"{PROJECT_SLUG}:lonely",)
+
+
+def test_the_entry_point_is_not_an_orphan() -> None:
+    """A document injected on every task is reached without anyone linking to it."""
+    brief = _doc(stem="start-here", kind=DocKind.BRIEF, read_when=ReadWhen.EVERY_TIME)
+    assert orphan_findings(docs=(brief,), links=()) == ()
+
+
+def test_an_unlinked_document_is_still_an_orphan_beside_the_entry_point() -> None:
+    docs = (
+        _doc(stem="start-here", kind=DocKind.BRIEF, read_when=ReadWhen.EVERY_TIME),
+        _doc(stem="lonely"),
+    )
+    found = orphan_findings(docs=docs, links=())
+    assert found[0].doc_ids == (f"{PROJECT_SLUG}:lonely",)
+
+
+def test_a_kind_outside_the_vocabulary_is_reported() -> None:
+    docs = (_doc(stem="proposal", frontmatter={"kind": "product-brief"}),)
+    found = unrecognised_frontmatter_findings(docs=docs)
+    assert _codes(found) == ["unrecognised_frontmatter"]
+    assert found[0].doc_ids == (f"{PROJECT_SLUG}:proposal",)
+
+
+def test_a_read_when_outside_the_vocabulary_is_reported() -> None:
+    docs = (_doc(stem="plan", frontmatter={"read_when": "sometimes"}),)
+    assert _codes(unrecognised_frontmatter_findings(docs=docs)) == ["unrecognised_frontmatter"]
+
+
+def test_recognised_frontmatter_reports_nothing() -> None:
+    docs = (_doc(stem="plan", frontmatter={"kind": "area_design", "read_when": "in_area"}),)
+    assert unrecognised_frontmatter_findings(docs=docs) == ()
 
 
 def test_log_entries_are_never_orphans() -> None:

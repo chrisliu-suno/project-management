@@ -5,6 +5,8 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 
 from ..constants import (
+    DOC_KIND_KEY,
+    DOC_READ_WHEN_KEY,
     EVERY_TIME_RESERVED_LINES,
     HEALTH_DUPLICATE_BODY_OVERLAP,
     HEALTH_DUPLICATE_TITLE_SIMILARITY,
@@ -17,6 +19,7 @@ from .onboarding import onboarding_findings
 
 AGENT_SUFFIX_SEPARATOR = "--"
 CITATION_EXCLUDED_TYPE = LinkType.CITED_BY
+ENUM_FRONTMATTER_KEYS = ((DOC_KIND_KEY, DocKind), (DOC_READ_WHEN_KEY, ReadWhen))
 
 
 def _addressable(*, docs: tuple[Doc, ...]) -> tuple[Doc, ...]:
@@ -59,10 +62,19 @@ def brief_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
     )
 
 
+def _reachable_without_a_link(*, doc: Doc) -> bool:
+    """Whether a reader arrives at this document without following anything."""
+    return doc.read_when is ReadWhen.EVERY_TIME
+
+
 def orphan_findings(*, docs: tuple[Doc, ...], links: tuple[Link, ...]) -> tuple[Finding, ...]:
     """Documents nothing links to are reachable only by luck."""
     linked_to = {link.dst_id for link in links if link.link_type is not CITATION_EXCLUDED_TYPE}
-    orphans = sorted(doc.doc_id for doc in _addressable(docs=docs) if doc.doc_id not in linked_to)
+    orphans = sorted(
+        doc.doc_id
+        for doc in _addressable(docs=docs)
+        if doc.doc_id not in linked_to and not _reachable_without_a_link(doc=doc)
+    )
     if not orphans:
         return ()
     return (
@@ -225,12 +237,50 @@ def unclassified_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
     )
 
 
+def _unrecognised_enum_keys(*, doc: Doc) -> tuple[str, ...]:
+    return tuple(
+        key
+        for key, enum_type in ENUM_FRONTMATTER_KEYS
+        if isinstance(raw := doc.frontmatter.get(key), str)
+        and raw.strip().lower() not in {str(member) for member in enum_type}
+    )
+
+
+def unrecognised_frontmatter_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
+    """Frontmatter declaring a kind or read-when outside the vocabulary.
+
+    The loader falls back silently, so a typo reads as a deliberate classification
+    and the document is never selected.
+    """
+    offenders = sorted(
+        doc.doc_id for doc in _addressable(docs=docs) if _unrecognised_enum_keys(doc=doc)
+    )
+    if not offenders:
+        return ()
+    return (
+        Finding(
+            code="unrecognised_frontmatter",
+            severity=Severity.WARN,
+            headline=f"{len(offenders)} document(s) declare a value outside the vocabulary",
+            detail=(
+                "`kind` must be one of "
+                + ", ".join(sorted(str(member) for member in DocKind))
+                + "; `read_when` one of "
+                + ", ".join(sorted(str(member) for member in ReadWhen))
+                + "."
+            ),
+            doc_ids=tuple(offenders),
+        ),
+    )
+
+
 def all_findings(*, docs: tuple[Doc, ...], links: tuple[Link, ...]) -> tuple[Finding, ...]:
     """Every check, in the order they should be read."""
     return (
         *brief_findings(docs=docs),
         *every_time_findings(docs=docs),
         *unclassified_findings(docs=docs),
+        *unrecognised_frontmatter_findings(docs=docs),
         *duplicate_findings(docs=docs),
         *orphan_findings(docs=docs, links=links),
         *cap_breach_findings(docs=docs),
