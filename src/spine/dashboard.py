@@ -91,6 +91,5 @@ class PickPreview:
             "chosen": [dict(entry) for entry in self.chosen],
             "dropped": [dict(entry) for entry in self.dropped],
             "total_lines": self.total_lines,
-            "plan": self.plan,
             "reason": self.reason,
         }

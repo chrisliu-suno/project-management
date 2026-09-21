@@ -15,6 +15,8 @@ from urllib.request import Request, urlopen
 import pytest
 
 from spine.constants import DASHBOARD_PICK_BUDGET, SPINE_HOME_ENV_VAR
+from spine.model import Project
+from spine.registry import TomlProjectRegistry
 from spine.serve.api import ERROR_FIELD, PROJECTS_FIELD, pick_payload, projects_payload
 from spine.serve.page import render_page
 from spine.serve.server import build_server
@@ -22,6 +24,8 @@ from spine.serve.server import build_server
 EPHEMERAL_PORT = 0
 LOOPBACK = "127.0.0.1"
 UNKNOWN_SLUG = "no-such-project"
+PREVIEW_SLUG = "relay"
+PREVIEW_FIELDS_THE_PAGE_READS = ("chosen", "dropped", "total_lines", "reason")
 
 
 @pytest.fixture(autouse=True)
@@ -83,6 +87,21 @@ def test_an_unknown_project_is_an_error_not_a_crash() -> None:
         project_slug=UNKNOWN_SLUG, task="do a thing", budget=DASHBOARD_PICK_BUDGET
     )
     assert ERROR_FIELD in payload
+
+
+def test_a_registered_project_previews_the_fields_the_page_reads(tmp_path: Path) -> None:
+    """The success path: pick_payload renders, and carries every key runPick draws from."""
+    docs_dir = tmp_path / "corpus"
+    docs_dir.mkdir()
+    (docs_dir / "brief.md").write_text("# Relay\n\nThe relay carries messages.\n")
+    TomlProjectRegistry().add_project(
+        project=Project(slug=PREVIEW_SLUG, name="Relay", docs_dir=docs_dir)
+    )
+    payload = pick_payload(
+        project_slug=PREVIEW_SLUG, task="carry a message", budget=DASHBOARD_PICK_BUDGET
+    )
+    assert ERROR_FIELD not in payload
+    assert set(PREVIEW_FIELDS_THE_PAGE_READS) <= set(payload)
 
 
 SVG_NAMESPACE = "http://www.w3.org/2000/svg"
