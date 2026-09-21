@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -155,6 +156,39 @@ def test_applying_to_a_missing_file_fails_rather_than_raising(corpus_dir: Path) 
     _, proposal = _queued(corpus_dir=corpus_dir)
     (corpus_dir / "brief.md").unlink()
     assert apply_proposal(proposal=proposal) is False
+
+
+def test_applying_twice_keeps_one_heading(corpus_dir: Path) -> None:
+    """A proposal drafted before an earlier one landed must not restate the section."""
+    _, first = _queued(corpus_dir=corpus_dir)
+    assert apply_proposal(proposal=first) is True
+    second = replace(first, body=f"{PROPOSAL_APPEND_HEADING}\n\n- #99 \u2014 later work")
+    assert apply_proposal(proposal=second) is True
+    written = (corpus_dir / "brief.md").read_text(encoding="utf-8")
+    assert written.count(PROPOSAL_APPEND_HEADING) == 1
+    assert "- #99 \u2014 later work" in written
+
+
+def test_reapplying_the_same_proposal_writes_nothing(corpus_dir: Path) -> None:
+    _, proposal = _queued(corpus_dir=corpus_dir)
+    assert apply_proposal(proposal=proposal) is True
+    before = (corpus_dir / "brief.md").read_text(encoding="utf-8")
+    assert apply_proposal(proposal=proposal) is False
+    assert (corpus_dir / "brief.md").read_text(encoding="utf-8") == before
+
+
+def test_appending_lands_under_the_heading_not_at_the_end(corpus_dir: Path) -> None:
+    _, first = _queued(corpus_dir=corpus_dir)
+    assert apply_proposal(proposal=first) is True
+    brief = corpus_dir / "brief.md"
+    brief.write_text(
+        brief.read_text(encoding="utf-8") + "\n## Where the parts live\n\nA table.\n",
+        encoding="utf-8",
+    )
+    second = replace(first, body=f"{PROPOSAL_APPEND_HEADING}\n\n- #99 \u2014 later work")
+    assert apply_proposal(proposal=second) is True
+    lines = brief.read_text(encoding="utf-8").splitlines()
+    assert lines.index("- #99 \u2014 later work") < lines.index("## Where the parts live")
 
 
 def test_cli_exposes_the_propose_subcommand() -> None:
