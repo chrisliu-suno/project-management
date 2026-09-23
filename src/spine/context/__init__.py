@@ -13,7 +13,7 @@ from ..constants import (
     SPINE_SESSION_ID_ENV_VAR,
 )
 from .attach import Attachment, attach, current_branch, current_repo
-from .render import always_read, render_context, render_project
+from .render import always_read, render_ambiguity, render_context, render_project
 
 __all__ = [
     "Attachment",
@@ -23,13 +23,15 @@ __all__ = [
     "current_branch",
     "current_repo",
     "register_subcommand",
+    "render_ambiguity",
     "render_context",
     "render_project",
 ]
 
 
 def context_for(*, cwd: Path, session_id: str | None, budget: int) -> str:
-    """The injection payload for a session, or empty when no project applies."""
+    """The injection payload for a session, the disambiguation prompt when several
+    projects tie, or empty when none applies."""
     from ..index import load_corpus
 
     attachment = attach(cwd=cwd, session_id=session_id)
@@ -37,7 +39,7 @@ def context_for(*, cwd: Path, session_id: str | None, budget: int) -> str:
         project for project in attachment.projects if project.docs_dir.is_dir()
     ]
     if not attached:
-        return ""
+        return render_ambiguity(projects=attachment.ambiguous)
     share = max(budget // len(attached), 1)
     blocks = [
         render_project(
@@ -81,6 +83,11 @@ def _handle_which(args: argparse.Namespace) -> int:
         session_id=_session_id_from(override=args.session),
     )
     if not attachment.projects:
+        if attachment.ambiguous:
+            print("ambiguous — pick one:", file=sys.stderr)
+            for project in sorted(attachment.ambiguous, key=lambda found: found.slug):
+                print(f"  spine session set --project {project.slug}", file=sys.stderr)
+            return EXIT_OK
         print("no project", file=sys.stderr)
         return EXIT_OK
     for project in attachment.projects:

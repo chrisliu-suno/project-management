@@ -8,7 +8,12 @@ import pytest
 
 from spine.constants import MAX_AUTO_ATTACH_PROJECTS, SPINE_HOME_ENV_VAR
 from spine.context.attach import _best_matches
-from spine.context.render import always_read, render_context, render_project
+from spine.context.render import (
+    always_read,
+    render_ambiguity,
+    render_context,
+    render_project,
+)
 from spine.model import Doc, DocKind, Project, ProjectMatch, ReadWhen
 
 PROJECT_SLUG = "alpha"
@@ -48,24 +53,45 @@ def _doc(
 
 def test_the_strongest_match_wins() -> None:
     matches = (_match(slug="strong", confidence=0.9), _match(slug="weak", confidence=0.6))
-    assert [m.project.slug for m in _best_matches(matches=matches)] == ["strong"]
+    chosen, ambiguous = _best_matches(matches=matches)
+    assert [found.project.slug for found in chosen] == ["strong"]
+    assert ambiguous == ()
 
 
 def test_near_ties_both_attach() -> None:
     matches = (_match(slug="one", confidence=0.80), _match(slug="two", confidence=0.78))
-    assert len(_best_matches(matches=matches)) == 2
+    chosen, ambiguous = _best_matches(matches=matches)
+    assert len(chosen) == 2
+    assert ambiguous == ()
 
 
-def test_too_many_ties_attach_nothing() -> None:
+def test_too_many_ties_attach_nothing_and_report_ambiguity() -> None:
     matches = tuple(
         _match(slug=f"p{index}", confidence=0.6)
         for index in range(MAX_AUTO_ATTACH_PROJECTS + 1)
     )
-    assert _best_matches(matches=matches) == ()
+    chosen, ambiguous = _best_matches(matches=matches)
+    assert chosen == ()
+    assert len(ambiguous) == MAX_AUTO_ATTACH_PROJECTS + 1
 
 
 def test_nothing_below_the_threshold_attaches() -> None:
-    assert _best_matches(matches=(_match(slug="faint", confidence=0.1),)) == ()
+    assert _best_matches(matches=(_match(slug="faint", confidence=0.1),)) == ((), ())
+
+
+def test_ambiguity_prompt_offers_one_stamp_command_per_candidate() -> None:
+    matches = tuple(
+        _match(slug=f"p{index}", confidence=0.6)
+        for index in range(MAX_AUTO_ATTACH_PROJECTS + 1)
+    )
+    _, ambiguous = _best_matches(matches=matches)
+    prompt = render_ambiguity(projects=tuple(found.project for found in ambiguous))
+    for found in ambiguous:
+        assert f"spine session set --project {found.project.slug}" in prompt
+
+
+def test_no_candidates_renders_no_ambiguity_prompt() -> None:
+    assert render_ambiguity(projects=()) == ""
 
 
 def test_only_the_every_time_group_is_always_read() -> None:
