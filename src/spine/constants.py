@@ -19,6 +19,7 @@ DEFAULT_SPINE_DIR_NAME = "spine"
 REGISTRY_FILE_NAME = "registry.toml"
 GRAPH_DB_FILE_NAME = "graph.sqlite3"
 SESSIONS_DIR_NAME = "sessions"
+CHECKOUTS_DIR_NAME = "checkouts"
 PICKS_DB_FILE_NAME = "picks.sqlite3"
 
 PROJECT_SLUG_SEPARATOR = "-"

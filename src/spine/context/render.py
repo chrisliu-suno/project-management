@@ -17,6 +17,10 @@ AMBIGUITY_BODY = (
 AMBIGUITY_STAMP_HINT = (
     "Run the matching line, then the choice sticks for the rest of this session."
 )
+AMBIGUITY_WORKTREE_HINT = (
+    "Run the matching line. This is a worktree, so the choice sticks for every session in it "
+    "— `spine session forget` undoes that."
+)
 
 
 def always_read(*, docs: tuple[Doc, ...]) -> tuple[Doc, ...]:
@@ -77,7 +81,9 @@ def render_task_context(*, project: Project, docs: tuple[Doc, ...]) -> str:
     return DOC_SEPARATOR.join(blocks)
 
 
-def render_ambiguity(*, projects: tuple[Project, ...]) -> str:
+def render_ambiguity(
+    *, projects: tuple[Project, ...], is_worktree: bool = False
+) -> str:
     """The prompt shown when several projects tie, listing the command that picks each."""
     if not projects:
         return NO_PROJECT_MESSAGE
@@ -85,9 +91,8 @@ def render_ambiguity(*, projects: tuple[Project, ...]) -> str:
         f"- **{project.name}** — `spine session set --project {project.slug}`"
         for project in sorted(projects, key=lambda candidate: candidate.slug)
     )
-    return DOC_SEPARATOR.join(
-        (AMBIGUITY_HEADER, AMBIGUITY_BODY, choices, AMBIGUITY_STAMP_HINT)
-    )
+    hint = AMBIGUITY_WORKTREE_HINT if is_worktree else AMBIGUITY_STAMP_HINT
+    return DOC_SEPARATOR.join((AMBIGUITY_HEADER, AMBIGUITY_BODY, choices, hint))
 
 
 def render_context(
