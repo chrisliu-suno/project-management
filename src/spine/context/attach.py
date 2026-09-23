@@ -32,6 +32,7 @@ class Attachment:
     projects: tuple[Project, ...]
     source: str
     evidence: tuple[str, ...] = ()
+    ambiguous: tuple[Project, ...] = ()
 
 
 def _run_git(*, command: tuple[str, ...], cwd: Path) -> str | None:
@@ -82,24 +83,25 @@ def _from_stamp(*, session_id: str | None, registry) -> Attachment | None:
 
 
 def _best_matches(*, matches):
-    """Only the strongest matches attach.
+    """The strongest matches, split into those that attach and those that are ambiguous.
 
-    A signal several projects share — one repository holding several projects —
-    would otherwise attach all of them to every session in that repository. Past
-    MAX_AUTO_ATTACH_PROJECTS the signal is treated as ambiguous and nothing attaches.
+    A signal several projects share — one repository holding several projects — would
+    otherwise attach all of them to every session in that repository. Past
+    MAX_AUTO_ATTACH_PROJECTS the tie is returned as ambiguous so the caller can ask,
+    rather than silently attaching nothing.
     """
     confident = [
         match for match in matches if match.confidence >= MIN_CONFIDENCE_FOR_AUTO_ATTACH
     ]
     if not confident:
-        return ()
+        return (), ()
     best = max(match.confidence for match in confident)
     top = tuple(
         match for match in confident if best - match.confidence <= ATTACH_CONFIDENCE_MARGIN
     )
     if len(top) > MAX_AUTO_ATTACH_PROJECTS:
-        return ()
-    return top
+        return (), top
+    return top, ()
 
 
 def _from_signals(*, cwd: Path, registry) -> Attachment:
@@ -108,13 +110,14 @@ def _from_signals(*, cwd: Path, registry) -> Attachment:
     matches = SignalResolver(registry=registry).resolve(
         cwd=cwd, branch=current_branch(cwd=cwd), repo=current_repo(cwd=cwd)
     )
-    confident = _best_matches(matches=matches)
+    confident, ambiguous = _best_matches(matches=matches)
     return Attachment(
         projects=tuple(match.project for match in confident),
         source=INFERRED_SOURCE,
         evidence=tuple(
             f"{match.project.slug}: {'; '.join(match.evidence)}" for match in confident
         ),
+        ambiguous=tuple(match.project for match in ambiguous),
     )
 
 

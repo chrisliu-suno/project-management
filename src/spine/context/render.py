@@ -9,6 +9,14 @@ CONTEXT_HEADER = "# Project context"
 NO_PROJECT_MESSAGE = ""
 TRUNCATION_NOTE = "_(truncated to fit the always-read budget)_"
 DOC_SEPARATOR = "\n\n"
+AMBIGUITY_HEADER = "# Project context — which project is this?"
+AMBIGUITY_BODY = (
+    "Several projects match this checkout equally, so no context was loaded. "
+    "Loading the wrong project's documents is worse than loading none, so pick one:"
+)
+AMBIGUITY_STAMP_HINT = (
+    "Run the matching line, then the choice sticks for the rest of this session."
+)
 
 
 def always_read(*, docs: tuple[Doc, ...]) -> tuple[Doc, ...]:
@@ -58,6 +66,19 @@ def render_project(*, project: Project, docs: tuple[Doc, ...], budget: int) -> s
     if was_truncated:
         blocks.append(TRUNCATION_NOTE)
     return DOC_SEPARATOR.join(blocks)
+
+
+def render_ambiguity(*, projects: tuple[Project, ...]) -> str:
+    """The prompt shown when several projects tie, listing the command that picks each."""
+    if not projects:
+        return NO_PROJECT_MESSAGE
+    choices = "\n".join(
+        f"- **{project.name}** — `spine session set --project {project.slug}`"
+        for project in sorted(projects, key=lambda candidate: candidate.slug)
+    )
+    return DOC_SEPARATOR.join(
+        (AMBIGUITY_HEADER, AMBIGUITY_BODY, choices, AMBIGUITY_STAMP_HINT)
+    )
 
 
 def render_context(
