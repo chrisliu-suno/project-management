@@ -68,6 +68,15 @@ def render_project(*, project: Project, docs: tuple[Doc, ...], budget: int) -> s
     return DOC_SEPARATOR.join(blocks)
 
 
+def render_task_context(*, project: Project, docs: tuple[Doc, ...]) -> str:
+    """The documents the picker chose for a task, under one project heading."""
+    if not docs:
+        return NO_PROJECT_MESSAGE
+    blocks = [f"## {project.name} (`{project.slug}`) — for this task"]
+    blocks.extend(_render_doc(doc=doc) for doc in docs)
+    return DOC_SEPARATOR.join(blocks)
+
+
 def render_ambiguity(*, projects: tuple[Project, ...]) -> str:
     """The prompt shown when several projects tie, listing the command that picks each."""
     if not projects:

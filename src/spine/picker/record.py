@@ -40,6 +40,10 @@ INSERT INTO {PICKS_TABLE_NAME} (
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
+_SESSION_PICK_SQL = f"""
+SELECT 1 FROM {PICKS_TABLE_NAME} WHERE session_id = ? LIMIT 1
+"""
+
 _SUMMARY_SQL = f"""
 SELECT
     COUNT(*),
@@ -144,6 +148,20 @@ class SqlitePickRecorder:
             return
         finally:
             connection.close()
+
+
+def has_pick_for_session(*, session_id: str, db_path: Path | None = None) -> bool:
+    """Whether this session already received a task-driven selection."""
+    resolved_path = _resolved_db_path(db_path=db_path)
+    if not resolved_path.exists():
+        return False
+    connection = _connect(db_path=resolved_path)
+    try:
+        return connection.execute(_SESSION_PICK_SQL, (session_id,)).fetchone() is not None
+    except sqlite3.Error:
+        return False
+    finally:
+        connection.close()
 
 
 def summarize_picks(*, db_path: Path | None = None) -> PickSummary:

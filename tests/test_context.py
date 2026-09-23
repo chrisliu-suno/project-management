@@ -8,11 +8,13 @@ import pytest
 
 from spine.constants import MAX_AUTO_ATTACH_PROJECTS, SPINE_HOME_ENV_VAR
 from spine.context.attach import _best_matches
+from spine.context import task_context_for
 from spine.context.render import (
     always_read,
     render_ambiguity,
     render_context,
     render_project,
+    render_task_context,
 )
 from spine.model import Doc, DocKind, Project, ProjectMatch, ReadWhen
 
@@ -129,3 +131,47 @@ def test_cli_exposes_the_context_subcommand() -> None:
 
     parsed = build_parser().parse_args(["context", "--cwd", "/tmp"])
     assert parsed.handler is not None
+
+
+def test_cli_exposes_the_task_subcommand() -> None:
+    from spine.cli import build_parser
+
+    parsed = build_parser().parse_args(["context", "task", "--task", "close the leak"])
+    assert parsed.handler is not None
+    assert parsed.task == "close the leak"
+
+
+def test_task_context_carries_every_chosen_document() -> None:
+    chosen = (_doc(stem="hub"), _doc(stem="area", read_when=ReadWhen.IN_AREA))
+    rendered = render_task_context(project=_project(slug=PROJECT_SLUG), docs=chosen)
+    assert rendered.startswith(f"## {PROJECT_SLUG.upper()}")
+    for doc in chosen:
+        assert doc.doc_id in rendered
+
+
+def test_a_selection_with_no_documents_renders_nothing() -> None:
+    assert render_task_context(project=_project(slug=PROJECT_SLUG), docs=()) == ""
+
+
+def test_a_blank_task_selects_nothing() -> None:
+    assert task_context_for(cwd=Path("/tmp"), session_id="s-1", task="   ", budget=100) == ""
+
+
+def test_a_session_without_an_id_selects_nothing() -> None:
+    assert task_context_for(cwd=Path("/tmp"), session_id=None, task="real task", budget=100) == ""
+
+
+def test_a_session_that_already_picked_does_not_pick_again(tmp_path: Path) -> None:
+    from spine.picker.record import SqlitePickRecorder, has_pick_for_session
+    from spine.model import Selection
+
+    db_path = tmp_path / "picks.sqlite3"
+    assert has_pick_for_session(session_id="s-1", db_path=db_path) is False
+    SqlitePickRecorder(db_path=db_path).record(
+        session_id="s-1",
+        project_slug=PROJECT_SLUG,
+        selection=Selection(chosen=(_doc(stem="hub"),)),
+        confidence=1.0,
+    )
+    assert has_pick_for_session(session_id="s-1", db_path=db_path) is True
+    assert has_pick_for_session(session_id="s-2", db_path=db_path) is False
