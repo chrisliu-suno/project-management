@@ -21,6 +21,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         title TEXT NOT NULL,
         body TEXT NOT NULL,
         area TEXT,
+        brief TEXT,
         lifecycle TEXT,
         frontmatter TEXT NOT NULL,
         is_generated INTEGER NOT NULL,
@@ -48,10 +49,10 @@ DELETE_PROJECT_LINKS_SQL = "DELETE FROM links WHERE project_slug = :project_slug
 
 INSERT_DOC_SQL = """
 INSERT INTO docs (
-    project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
+    project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
     frontmatter, is_generated, parent_doc_id
 ) VALUES (
-    :project_slug, :doc_id, :path, :kind, :read_when, :title, :body, :area, :lifecycle,
+    :project_slug, :doc_id, :path, :kind, :read_when, :title, :body, :area, :brief, :lifecycle,
     :frontmatter, :is_generated, :parent_doc_id
 )
 """
@@ -62,7 +63,7 @@ VALUES (:project_slug, :src_id, :dst_id, :link_type, :confidence, :evidence)
 """
 
 SELECT_PROJECT_DOCS_SQL = """
-SELECT project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
+SELECT project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
        frontmatter, is_generated, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
@@ -70,7 +71,7 @@ ORDER BY doc_id
 """
 
 SELECT_ORPHAN_DOCS_SQL = """
-SELECT project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
+SELECT project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
        frontmatter, is_generated, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
@@ -110,6 +111,7 @@ def _doc_row(*, doc: Doc, project_slug: str) -> dict[str, object]:
         "title": doc.title,
         "body": doc.body,
         "area": doc.area,
+        "brief": doc.brief,
         "lifecycle": str(doc.lifecycle) if doc.lifecycle is not None else None,
         "frontmatter": json.dumps(doc.frontmatter, default=str),
         "is_generated": TRUE_AS_INTEGER if doc.is_generated else FALSE_AS_INTEGER,
@@ -139,6 +141,7 @@ def _doc_from_row(*, row: sqlite3.Row) -> Doc:
         body=row["body"],
         project_slug=row["project_slug"],
         area=row["area"],
+        brief=row["brief"],
         lifecycle=Lifecycle(lifecycle) if lifecycle else None,
         frontmatter=json.loads(row["frontmatter"]),
         is_generated=bool(row["is_generated"]),

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ..constants import (
     DOC_AREA_KEY,
+    DOC_BRIEF_KEY,
     DOC_FILE_SUFFIX,
     DOC_GENERATED_KEYS,
     DOC_ID_SEPARATOR,
@@ -24,6 +25,7 @@ from ..constants import (
     PROJECT_SLUG_SEPARATOR,
 )
 from ..model import DEFAULT_READ_WHEN, Doc, DocKind, Lifecycle, Project, ReadWhen
+from .briefs import get_briefs_from_body, get_fallback_brief_from_body
 from .frontmatter import parse_frontmatter
 
 
@@ -32,10 +34,12 @@ class FilesystemDocSource:
 
     def load_all(self, *, project: Project) -> tuple[Doc, ...]:
         """Every markdown file in the project's docs directory, ordered by path."""
-        return tuple(
+        docs = tuple(
             self.load_one(project=project, path=path)
             for path in corpus_paths(docs_dir=project.docs_dir)
         )
+        apply_harvested_briefs(docs=docs)
+        return docs
 
     def load_one(self, *, project: Project, path: Path) -> Doc:
         """Read one file into a Doc, filling absent frontmatter from filename and body."""
@@ -50,10 +54,24 @@ class FilesystemDocSource:
             body=parsed.body,
             project_slug=project.slug,
             area=_optional_text(mapping=parsed.mapping, key=DOC_AREA_KEY),
+            brief=_optional_text(mapping=parsed.mapping, key=DOC_BRIEF_KEY),
             lifecycle=_coerce_enum(raw=parsed.mapping.get(DOC_LIFECYCLE_KEY), enum_type=Lifecycle),
             frontmatter=dict(parsed.mapping),
             is_generated=_resolve_is_generated(mapping=parsed.mapping),
         )
+
+
+def apply_harvested_briefs(*, docs: tuple[Doc, ...]) -> None:
+    """Fill each doc's brief from the corpus's brief documents, leaving declared ones alone."""
+    harvested: dict[str, str] = {}
+    for doc in docs:
+        if doc.kind == DocKind.BRIEF:
+            harvested.update(get_briefs_from_body(body=doc.body))
+    for doc in docs:
+        if doc.brief is None:
+            doc.brief = harvested.get(doc.path.stem) or get_fallback_brief_from_body(
+                body=doc.body
+            )
 
 
 def corpus_paths(*, docs_dir: Path) -> tuple[Path, ...]:

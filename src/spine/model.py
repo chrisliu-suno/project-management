@@ -104,6 +104,7 @@ class Doc:
     body: str
     project_slug: str
     area: str | None = None
+    brief: str | None = None
     lifecycle: Lifecycle | None = None
     frontmatter: dict[str, object] = field(default_factory=dict)
     is_generated: bool = False
