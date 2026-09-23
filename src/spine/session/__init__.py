@@ -28,6 +28,7 @@ EXIT_OK = 0
 EXIT_NO_STAMP = 1
 EXIT_MALFORMED = 3
 PROJECT_LIST_SEPARATOR = ","
+STAMPED_INTENT = "stamped by hand"
 
 
 def resolve_stamp(*, session_id: str, store: FileSessionStore | None = None) -> SessionStamp | None:
@@ -43,6 +44,21 @@ def _current_session_id(*, override: str | None) -> str | None:
     return override or os.environ.get(SPINE_SESSION_ID_ENV_VAR)
 
 
+def _declare_to_dashboard(*, session_id: str, slugs: tuple[str, ...], intent: str | None) -> None:
+    """Register the stamped session as live. Never raises: a stamp must survive a dead store."""
+    try:
+        from ..live import LiveStore
+
+        LiveStore().declare(
+            session_id=session_id,
+            project_slugs=slugs,
+            intent=intent or STAMPED_INTENT,
+            declared_paths=(),
+        )
+    except Exception:
+        pass
+
+
 def _handle_set(args: argparse.Namespace) -> int:
     session_id = _current_session_id(override=args.session)
     if session_id is None:
@@ -56,6 +72,7 @@ def _handle_set(args: argparse.Namespace) -> int:
         intent=args.intent,
     )
     FileSessionStore().write(stamp=stamp)
+    _declare_to_dashboard(session_id=session_id, slugs=slugs, intent=args.intent)
     print(f"{session_id} -> {', '.join(slugs)}")
     return EXIT_OK
 
