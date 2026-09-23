@@ -187,3 +187,25 @@ def test_an_empty_corpus_renders_nothing() -> None:
     project = Project(slug="alpha", name="Alpha", docs_dir=Path("/docs/alpha"))
     assert render_brief_index(corpora=((project, ()),)) == ""
     assert render_brief_index(corpora=()) == ""
+
+
+def test_a_purpose_field_is_the_document_saying_what_it_is_for() -> None:
+    """Skipping it as a header field left the brief starting mid-clause on the wrapped line."""
+    body = (
+        "# Start here\n\n**Purpose:** the entry point for the access engine and the onboarding\n"
+        "automation built on top of it. More detail follows.\n**Last reviewed:** 2026-09-22\n"
+    )
+    assert get_fallback_brief_from_body(body=body) == (
+        "the entry point for the access engine and the onboarding automation built on top of it."
+    )
+
+
+def test_a_bullet_takes_its_wrapped_lines_with_it() -> None:
+    """A link wrapping onto the next line was read as the opening sentence."""
+    body = "# Tracker\n\n- **Project:** [Workspace Invites Platinum\n  Launch](https://x.test)\n"
+    assert get_fallback_brief_from_body(body=body) is None
+
+
+def test_a_heading_does_not_swallow_the_prose_under_it() -> None:
+    body = "# Map\n\n## Section\nThe access plane governs roles.\n"
+    assert get_fallback_brief_from_body(body=body) == "The access plane governs roles."

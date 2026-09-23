@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..constants import (
-    BODY_SKIPPED_LINE_PREFIXES,
+    BODY_STRUCTURE_LINE_PREFIXES,
+    BODY_WRAPPING_LINE_PREFIXES,
     BRIEF_REFERENCE_SUFFIXES,
     BRIEF_TABLE_MIN_CELLS,
     BRIEF_TEXT_MAX_CHARACTERS,
@@ -20,6 +21,7 @@ from ..constants import (
     METADATA_BOLD_FIELD_PREFIX,
     METADATA_BOLD_FIELD_SUFFIX,
     METADATA_FIELD_SUFFIX,
+    PURPOSE_FIELD_PREFIXES,
     SENTENCE_END_CHARACTERS,
 )
 
@@ -98,27 +100,69 @@ def truncate_brief(*, text: str) -> str:
 
 
 def get_fallback_brief_from_body(*, body: str) -> str | None:
-    """The document's own opening sentence, for a document no brief table names.
+    """A document's own account of itself, for one no brief table names.
 
-    Weaker than a stated purpose and used only in its absence, so header metadata lines and
-    bare source links are skipped rather than presented as a description.
+    A `**Purpose:**` line is the document saying what it is for and is taken whole; otherwise
+    the opening sentence, skipping header fields so a plan is not described by its owner.
     """
+    declared = get_purpose_field_from_body(body=body)
+    if declared:
+        return truncate_brief(text=declared)
     paragraph = get_first_prose_paragraph(body=body)
     if not paragraph:
         return None
     return truncate_brief(text=get_first_sentence(text=paragraph))
 
 
-def get_first_prose_paragraph(*, body: str) -> str:
-    """The first run of consecutive prose lines, so a wrapped sentence is not cut mid-clause."""
+def get_purpose_field_from_body(*, body: str) -> str | None:
+    """The text of a `**Purpose:**` header field, including the lines it wraps onto."""
     collected: list[str] = []
     for line in body.splitlines():
         stripped = line.strip()
-        is_prose = bool(stripped) and not stripped.startswith(BODY_SKIPPED_LINE_PREFIXES)
-        if is_prose and not check_is_metadata_line(line=stripped):
+        if collected:
+            if not stripped or check_is_metadata_line(line=stripped):
+                break
             collected.append(stripped)
-        elif collected:
-            break
+            continue
+        for prefix in PURPOSE_FIELD_PREFIXES:
+            if stripped.lower().startswith(prefix.lower()):
+                collected.append(stripped[len(prefix) :].strip())
+                break
+    if not collected:
+        return None
+    return get_first_sentence(text=" ".join(collected))
+
+
+def get_first_prose_paragraph(*, body: str) -> str:
+    """The first run of consecutive prose lines, so a wrapped sentence is not cut mid-clause.
+
+    A skipped header field takes its wrapped continuation lines with it; otherwise the
+    paragraph starts mid-clause on whatever line the field ran onto.
+    """
+    collected: list[str] = []
+    is_inside_skipped_field = False
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            is_inside_skipped_field = False
+            if collected:
+                break
+            continue
+        if stripped.startswith(BODY_STRUCTURE_LINE_PREFIXES):
+            is_inside_skipped_field = False
+            if collected:
+                break
+            continue
+        if stripped.startswith(BODY_WRAPPING_LINE_PREFIXES) or check_is_metadata_line(
+            line=stripped
+        ):
+            is_inside_skipped_field = True
+            if collected:
+                break
+            continue
+        if is_inside_skipped_field:
+            continue
+        collected.append(stripped)
     return " ".join(collected)
 
 
