@@ -5,6 +5,8 @@ Nothing outside this module hardcodes a size, threshold, filename, or env var.
 
 from __future__ import annotations
 
+import re
+
 from .model import DocKind, LinkType, ReadWhen
 
 FRONTMATTER_DELIMITER = "---"
@@ -85,6 +87,8 @@ MARKDOWN_TABLE_CELL_SEPARATOR = "|"
 MARKDOWN_TABLE_RULE_CHARACTERS = frozenset("-: ")
 BRIEF_TABLE_MIN_CELLS = 2
 BRIEF_REFERENCE_SUFFIXES = (".md", ".html")
+MARKDOWN_LINK_TARGET_PATTERN = re.compile(r"\]\(([^)]+)\)")
+MARKDOWN_FRAGMENT_SEPARATOR = "#"
 BRIEF_TEXT_MAX_CHARACTERS = 160
 BODY_STRUCTURE_LINE_PREFIXES = ("#", "`")
 BODY_WRAPPING_LINE_PREFIXES = (">", "|", "-", "*")
@@ -111,6 +115,8 @@ DOC_KIND_BY_FILENAME_PREFIX: dict[str, DocKind] = {
     "decision-log": DocKind.DECISION_LOG,
     "open-questions": DocKind.OPEN_QUESTIONS,
 }
+BRIEF_FILENAME_STEMS: frozenset[str] = frozenset({"readme", "index", "start-here"})
+BRIEF_FILENAME_SUFFIX = "-start-here"
 FALLBACK_DOC_KIND = DocKind.GENERATED
 
 DOCS_COMMAND_NAME = "docs"

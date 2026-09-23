@@ -209,3 +209,44 @@ def test_a_bullet_takes_its_wrapped_lines_with_it() -> None:
 def test_a_heading_does_not_swallow_the_prose_under_it() -> None:
     body = "# Map\n\n## Section\nThe access plane governs roles.\n"
     assert get_fallback_brief_from_body(body=body) == "The access plane governs roles."
+
+
+def test_a_markdown_link_cell_resolves_to_its_target_not_its_label() -> None:
+    """Start-here tables link with prose labels; "Project status and PRs" names no file."""
+    assert (
+        get_document_stem_from_cell(
+            cell="[Project status and PRs](../access-reference/projects.md#access-engine-refactor)"
+        )
+        == "projects"
+    )
+    assert (
+        get_document_stem_from_cell(cell="[Entity onboarding SOP](sop-onboard-entity.md)")
+        == "sop-onboard-entity"
+    )
+
+
+def test_a_link_to_something_that_is_not_a_document_names_nothing() -> None:
+    assert get_document_stem_from_cell(cell="[the dashboard](https://app.datadoghq.com/x)") is None
+
+
+def test_a_link_cell_beats_a_stray_filename_in_the_same_cell() -> None:
+    """The link is the reference; a filename in the label is prose about it."""
+    assert (
+        get_document_stem_from_cell(cell="[replaces `old.md`](new.md)") == "new"
+    )
+
+
+def test_a_reversed_table_takes_the_question_as_the_purpose() -> None:
+    """A `| Question | Read |` index states the purpose in the left cell and links on the right."""
+    body = (
+        "| Question | Read |\n|---|---|\n"
+        "| How do I investigate a failure? | [Debugging runbook](debugging.md) |\n"
+    )
+    assert get_briefs_from_body(body=body) == {
+        "debugging": "How do I investigate a failure?"
+    }
+
+
+def test_a_row_linking_a_document_in_both_cells_is_not_a_brief() -> None:
+    """Neither cell states a purpose, so the row is a cross-reference, not an index entry."""
+    assert get_briefs_from_body(body="| [a](a.md) | [b](b.md) |\n") == {}

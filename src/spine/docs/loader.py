@@ -11,6 +11,8 @@ from ..constants import (
     DOC_FILE_SUFFIX,
     DOC_GENERATED_KEYS,
     DOC_ID_SEPARATOR,
+    BRIEF_FILENAME_STEMS,
+    BRIEF_FILENAME_SUFFIX,
     DOC_KIND_BY_FILENAME_PREFIX,
     DOC_KIND_KEY,
     DOC_KIND_WORD_SEPARATOR,
@@ -105,14 +107,21 @@ def resolve_kind(*, mapping: dict[str, object], path: Path) -> DocKind:
 
 
 def infer_kind_from_filename(*, path: Path) -> DocKind:
-    """Match the stem against the kind vocabulary, then against known filename prefixes."""
+    """Match the stem against the kind vocabulary, then entry-point names, then known prefixes."""
     stem = path.stem.lower()
     as_kind_value = stem.replace(FILENAME_WORD_SEPARATOR, DOC_KIND_WORD_SEPARATOR)
     direct = _coerce_enum(raw=as_kind_value, enum_type=DocKind)
     if direct is not None:
         return direct
+    if check_is_entry_point_filename(stem=stem):
+        return DocKind.BRIEF
     by_prefix = _kind_from_filename_prefix(stem=stem)
     return by_prefix if by_prefix is not None else FALLBACK_DOC_KIND
+
+
+def check_is_entry_point_filename(*, stem: str) -> bool:
+    """Whether the filename is a corpus entry point, which is where a brief table lives."""
+    return stem in BRIEF_FILENAME_STEMS or stem.endswith(BRIEF_FILENAME_SUFFIX)
 
 
 def _kind_from_filename_prefix(*, stem: str) -> DocKind | None:

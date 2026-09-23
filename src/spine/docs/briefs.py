@@ -16,6 +16,8 @@ from ..constants import (
     BRIEF_REFERENCE_SUFFIXES,
     BRIEF_TABLE_MIN_CELLS,
     BRIEF_TEXT_MAX_CHARACTERS,
+    MARKDOWN_FRAGMENT_SEPARATOR,
+    MARKDOWN_LINK_TARGET_PATTERN,
     MARKDOWN_TABLE_CELL_SEPARATOR,
     MARKDOWN_TABLE_RULE_CHARACTERS,
     METADATA_BOLD_FIELD_PREFIX,
@@ -47,17 +49,30 @@ def get_briefs_from_body(*, body: str) -> dict[str, str]:
 
 
 def get_brief_rows_from_body(*, body: str) -> tuple[BriefRow, ...]:
-    """Every table row whose first cell names a document file."""
+    """Every table row where one of the first two cells names a document and the other says why."""
     rows: list[BriefRow] = []
     for line in body.splitlines():
         cells = get_cells_from_table_line(line=line)
         if cells is None:
             continue
-        stem = get_document_stem_from_cell(cell=cells[0])
-        brief = truncate_brief(text=cells[1])
-        if stem and brief:
-            rows.append(BriefRow(stem=stem, brief=brief))
+        row = get_brief_row_from_cells(cells=cells)
+        if row:
+            rows.append(row)
     return tuple(rows)
+
+
+def get_brief_row_from_cells(*, cells: tuple[str, ...]) -> BriefRow | None:
+    """The document and its purpose, whichever column each is in.
+
+    A `| Read | For |` table names the document first; a `| Question | Read |` table names it
+    second, and there the question is the better statement of purpose.
+    """
+    for reference_index, brief_index in ((0, 1), (1, 0)):
+        stem = get_document_stem_from_cell(cell=cells[reference_index])
+        brief = truncate_brief(text=cells[brief_index])
+        if stem and brief and not get_document_stem_from_cell(cell=cells[brief_index]):
+            return BriefRow(stem=stem, brief=brief)
+    return None
 
 
 def get_cells_from_table_line(*, line: str) -> tuple[str, ...] | None:
@@ -83,14 +98,36 @@ def check_is_rule_row(*, cells: tuple[str, ...]) -> bool:
 def get_document_stem_from_cell(*, cell: str) -> str | None:
     """The document stem a cell refers to, or None when it names no document.
 
-    A cell often wraps the name in backticks and qualifies it with a directory or a trailing
-    parenthetical, so the reference is taken as the first token that ends in a known suffix.
+    A cell names its document either bare — in backticks, qualified by a directory or a trailing
+    parenthetical — or as a markdown link, whose label is prose and whose target is the reference.
+    The link target wins, because a label like "Project status and PRs" names no file.
     """
+    linked = get_link_target_from_cell(cell=cell)
+    if linked:
+        return linked
     for token in cell.replace("`", " ").split():
-        candidate = token.strip("()[],;")
-        if candidate.endswith(BRIEF_REFERENCE_SUFFIXES):
-            return Path(candidate).stem
+        if check_names_a_document(reference=token.strip("()[],;")):
+            return Path(token.strip("()[],;")).stem
     return None
+
+
+def get_link_target_from_cell(*, cell: str) -> str | None:
+    """The document stem a markdown link in the cell points at, ignoring any `#anchor`."""
+    match = MARKDOWN_LINK_TARGET_PATTERN.search(cell)
+    if not match:
+        return None
+    reference = strip_fragment(reference=match.group(1).strip())
+    return Path(reference).stem if check_names_a_document(reference=reference) else None
+
+
+def strip_fragment(*, reference: str) -> str:
+    """A link target without its `#section` suffix, which names a heading rather than a file."""
+    return reference.split(MARKDOWN_FRAGMENT_SEPARATOR, maxsplit=1)[0]
+
+
+def check_names_a_document(*, reference: str) -> bool:
+    """Whether a reference ends in a suffix the corpus keeps documents under."""
+    return reference.endswith(BRIEF_REFERENCE_SUFFIXES)
 
 
 def truncate_brief(*, text: str) -> str:
