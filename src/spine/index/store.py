@@ -21,6 +21,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         title TEXT NOT NULL,
         body TEXT NOT NULL,
         area TEXT,
+        brief TEXT,
         lifecycle TEXT,
         frontmatter TEXT NOT NULL,
         is_generated INTEGER NOT NULL,
@@ -43,15 +44,30 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS links_by_dst ON links (dst_id)",
 )
 
+ADDED_DOC_COLUMNS: tuple[tuple[str, str], ...] = (("brief", "TEXT"),)
+
+
+def _add_missing_columns(*, connection: sqlite3.Connection) -> None:
+    """Add columns a store predating them does not have.
+
+    Every schema statement is CREATE TABLE IF NOT EXISTS, so a store built before a column
+    existed keeps its old shape forever and every read of that column raises.
+    """
+    present = {row["name"] for row in connection.execute("PRAGMA table_info(docs)")}
+    for column, column_type in ADDED_DOC_COLUMNS:
+        if column not in present:
+            connection.execute(f"ALTER TABLE docs ADD COLUMN {column} {column_type}")
+
+
 DELETE_PROJECT_DOCS_SQL = "DELETE FROM docs WHERE project_slug = :project_slug"
 DELETE_PROJECT_LINKS_SQL = "DELETE FROM links WHERE project_slug = :project_slug"
 
 INSERT_DOC_SQL = """
 INSERT INTO docs (
-    project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
+    project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
     frontmatter, is_generated, parent_doc_id
 ) VALUES (
-    :project_slug, :doc_id, :path, :kind, :read_when, :title, :body, :area, :lifecycle,
+    :project_slug, :doc_id, :path, :kind, :read_when, :title, :body, :area, :brief, :lifecycle,
     :frontmatter, :is_generated, :parent_doc_id
 )
 """
@@ -62,7 +78,7 @@ VALUES (:project_slug, :src_id, :dst_id, :link_type, :confidence, :evidence)
 """
 
 SELECT_PROJECT_DOCS_SQL = """
-SELECT project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
+SELECT project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
        frontmatter, is_generated, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
@@ -70,7 +86,7 @@ ORDER BY doc_id
 """
 
 SELECT_ORPHAN_DOCS_SQL = """
-SELECT project_slug, doc_id, path, kind, read_when, title, body, area, lifecycle,
+SELECT project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
        frontmatter, is_generated, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
@@ -110,6 +126,7 @@ def _doc_row(*, doc: Doc, project_slug: str) -> dict[str, object]:
         "title": doc.title,
         "body": doc.body,
         "area": doc.area,
+        "brief": doc.brief,
         "lifecycle": str(doc.lifecycle) if doc.lifecycle is not None else None,
         "frontmatter": json.dumps(doc.frontmatter, default=str),
         "is_generated": TRUE_AS_INTEGER if doc.is_generated else FALSE_AS_INTEGER,
@@ -139,6 +156,7 @@ def _doc_from_row(*, row: sqlite3.Row) -> Doc:
         body=row["body"],
         project_slug=row["project_slug"],
         area=row["area"],
+        brief=row["brief"],
         lifecycle=Lifecycle(lifecycle) if lifecycle else None,
         frontmatter=json.loads(row["frontmatter"]),
         is_generated=bool(row["is_generated"]),
@@ -174,6 +192,7 @@ class SqliteGraphStore:
         connection.row_factory = sqlite3.Row
         for statement in SCHEMA_STATEMENTS:
             connection.execute(statement)
+        _add_missing_columns(connection=connection)
         return connection
 
     def replace_project(

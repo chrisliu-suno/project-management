@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from ..constants import (
     PATH_GLOB_MATCH_CONFIDENCE,
     PROMPT_MENTION_CONFIDENCE,
     REPO_MATCH_CONFIDENCE,
+    TICKET_KEY_PATTERN,
+    TICKET_PREFIX_MATCH_CONFIDENCE,
 )
 from ..model import Project, ProjectMatch
 from ..ports import ProjectRegistry
@@ -60,6 +63,7 @@ def _score_project(
         *_repo_signals(project=project, repo=repo),
         *_path_signals(project=project, cwd=cwd),
         *_branch_signals(project=project, branch=branch),
+        *_ticket_signals(project=project, opening_prompt=opening_prompt),
         *_prompt_signals(project=project, opening_prompt=opening_prompt),
     ]
     confidence = combine_signal_weights(weights=tuple(weight for weight, _ in signals))
@@ -109,6 +113,27 @@ def _branch_signals(*, project: Project, branch: str | None) -> list[Signal]:
         (BRANCH_PREFIX_MATCH_CONFIDENCE, f"branch prefix {prefix}")
         for prefix in project.branch_prefixes
         if branch.startswith(prefix)
+    ]
+
+
+def get_ticket_prefixes_from_text(*, text: str) -> tuple[str, ...]:
+    """Every ticket key prefix mentioned, uppercased. `COP-412` yields `COP`."""
+    return tuple(match.group(1).upper() for match in re.finditer(TICKET_KEY_PATTERN, text))
+
+
+def _ticket_signals(*, project: Project, opening_prompt: str | None) -> list[Signal]:
+    """A ticket key is the one signal that separates projects sharing a repo and a vocabulary.
+
+    `COP-412` is Permissions v2 and `EA-170` is the access-engine restructure; no amount of the
+    word "access" distinguishes them.
+    """
+    if not opening_prompt or not project.ticket_prefixes:
+        return []
+    mentioned = set(get_ticket_prefixes_from_text(text=opening_prompt))
+    return [
+        (TICKET_PREFIX_MATCH_CONFIDENCE, f"ticket {prefix}-")
+        for prefix in project.ticket_prefixes
+        if prefix.upper() in mentioned
     ]
 
 

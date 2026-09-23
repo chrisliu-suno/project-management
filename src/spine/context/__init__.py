@@ -20,6 +20,7 @@ from .render import (
     DOC_SEPARATOR,
     always_read,
     render_ambiguity,
+    render_brief_index,
     render_context,
     render_project,
     render_task_context,
@@ -34,6 +35,7 @@ __all__ = [
     "current_repo",
     "register_subcommand",
     "render_ambiguity",
+    "render_brief_index",
     "render_context",
     "render_project",
     "render_task_context",
@@ -51,11 +53,16 @@ def context_for(*, cwd: Path, session_id: str | None, budget: int) -> str:
         project for project in attachment.projects if project.docs_dir.is_dir()
     ]
     if not attached:
-        from ..session.checkout import linked_worktree_root
-
-        return render_ambiguity(
-            projects=attachment.ambiguous,
-            is_worktree=linked_worktree_root(cwd=cwd) is not None,
+        candidates = tuple(
+            project for project in attachment.ambiguous if project.docs_dir.is_dir()
+        )
+        if not candidates:
+            return render_ambiguity(projects=attachment.ambiguous)
+        return render_brief_index(
+            corpora=tuple(
+                (project, load_corpus(docs_dir=project.docs_dir, project_slug=project.slug))
+                for project in candidates
+            )
         )
     share = max(budget // len(attached), 1)
     blocks = [
@@ -84,7 +91,7 @@ def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: in
         return ""
     if has_pick_for_session(session_id=session_id):
         return ""
-    attachment = attach(cwd=cwd, session_id=session_id)
+    attachment = attach(cwd=cwd, session_id=session_id, opening_prompt=task)
     attached = [project for project in attachment.projects if project.docs_dir.is_dir()]
     if not attached:
         return ""

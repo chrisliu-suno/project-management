@@ -80,6 +80,7 @@ class Project:
     repos: tuple[str, ...] = ()
     path_globs: tuple[str, ...] = ()
     branch_prefixes: tuple[str, ...] = ()
+    ticket_prefixes: tuple[str, ...] = ()
     linear_project: str | None = None
 
 
@@ -104,6 +105,7 @@ class Doc:
     body: str
     project_slug: str
     area: str | None = None
+    brief: str | None = None
     lifecycle: Lifecycle | None = None
     frontmatter: dict[str, object] = field(default_factory=dict)
     is_generated: bool = False
