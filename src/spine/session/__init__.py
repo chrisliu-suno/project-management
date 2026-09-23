@@ -6,8 +6,11 @@ import argparse
 import os
 from datetime import UTC, datetime
 
+from pathlib import Path
+
 from ..constants import SPINE_SESSION_ID_ENV_VAR
 from ..model import SessionStamp
+from .checkout import FileCheckoutStore, linked_worktree_root, remember_choice
 from .stamp import (
     FileSessionStore,
     MalformedStampError,
@@ -16,6 +19,7 @@ from .stamp import (
 )
 
 __all__ = [
+    "FileCheckoutStore",
     "FileSessionStore",
     "MalformedStampError",
     "register_subcommand",
@@ -74,6 +78,23 @@ def _handle_set(args: argparse.Namespace) -> int:
     FileSessionStore().write(stamp=stamp)
     _declare_to_dashboard(session_id=session_id, slugs=slugs, intent=args.intent)
     print(f"{session_id} -> {', '.join(slugs)}")
+    if not args.session_only:
+        remembered = remember_choice(cwd=Path.cwd(), project_slugs=slugs)
+        if remembered is not None:
+            print(f"remembered for {remembered}; `spine session forget` undoes it")
+    return EXIT_OK
+
+
+def _handle_forget(args: argparse.Namespace) -> int:
+    """Drop this worktree's remembered choice so the next session is asked again."""
+    root = linked_worktree_root(cwd=Path.cwd())
+    if root is None:
+        print("not a linked worktree: nothing is remembered for a primary checkout")
+        return EXIT_NO_STAMP
+    if not FileCheckoutStore().clear(root=root):
+        print(f"nothing remembered for {root}")
+        return EXIT_NO_STAMP
+    print(f"forgot {root}")
     return EXIT_OK
 
 
@@ -109,6 +130,11 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     setter.add_argument("--project", required=True, help="Project slug, comma separated for several.")
     setter.add_argument("--session", default=None, help="Session id; defaults to the environment.")
     setter.add_argument("--intent", default=None, help="What this session is doing.")
+    setter.add_argument(
+        "--session-only",
+        action="store_true",
+        help="Do not remember this choice for the worktree.",
+    )
     setter.set_defaults(handler=_handle_set)
 
     shower = nested.add_parser("show", help="Print this session's attachment.")
@@ -118,3 +144,8 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     clearer = nested.add_parser("clear", help="Detach this session.")
     clearer.add_argument("--session", default=None)
     clearer.set_defaults(handler=_handle_clear)
+
+    forgetter = nested.add_parser(
+        "forget", help="Drop this worktree's remembered project choice."
+    )
+    forgetter.set_defaults(handler=_handle_forget)

@@ -1,7 +1,8 @@
 """Works out which projects a session belongs to.
 
-Reading a stamp is exact and free, so it wins. Inference over cwd, branch and
-repo is the fallback for sessions that started outside any project.
+Reading a stamp is exact and free, so it wins. A choice already made for this worktree comes
+next. Inference over cwd, branch and repo is the fallback for sessions that started outside
+any project.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ GIT_BRANCH_COMMAND = ("git", "rev-parse", "--abbrev-ref", "HEAD")
 GIT_REMOTE_COMMAND = ("git", "remote", "get-url", "origin")
 GIT_TIMEOUT_SECONDS = 3
 STAMP_SOURCE = "stamp"
+CHECKOUT_SOURCE = "checkout"
 INFERRED_SOURCE = "inferred"
 GITHUB_SUFFIX = ".git"
 
@@ -82,6 +84,26 @@ def _from_stamp(*, session_id: str | None, registry) -> Attachment | None:
     return Attachment(projects=found, source=STAMP_SOURCE, evidence=(f"stamp {session_id}",))
 
 
+def _from_checkout(*, cwd: Path, registry) -> Attachment | None:
+    from ..session.checkout import recall_choice
+
+    choice = recall_choice(cwd=cwd)
+    if choice is None:
+        return None
+    found = tuple(
+        project
+        for slug in choice.project_slugs
+        if (project := registry.get(slug)) is not None
+    )
+    if not found:
+        return None
+    return Attachment(
+        projects=found,
+        source=CHECKOUT_SOURCE,
+        evidence=(f"answered for {choice.root}",),
+    )
+
+
 def _best_matches(*, matches):
     """The strongest matches, split into those that attach and those that are ambiguous.
 
@@ -122,11 +144,14 @@ def _from_signals(*, cwd: Path, registry) -> Attachment:
 
 
 def attach(*, cwd: Path, session_id: str | None = None) -> Attachment:
-    """The session's projects, from its stamp if it has one and signals otherwise."""
+    """The session's projects: its stamp, then this worktree's answer, then signals."""
     from ..registry import load_registry
 
     registry = load_registry()
     stamped = _from_stamp(session_id=session_id, registry=registry)
     if stamped is not None:
         return stamped
+    remembered = _from_checkout(cwd=cwd, registry=registry)
+    if remembered is not None:
+        return remembered
     return _from_signals(cwd=cwd, registry=registry)

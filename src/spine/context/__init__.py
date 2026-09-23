@@ -51,7 +51,12 @@ def context_for(*, cwd: Path, session_id: str | None, budget: int) -> str:
         project for project in attachment.projects if project.docs_dir.is_dir()
     ]
     if not attached:
-        return render_ambiguity(projects=attachment.ambiguous)
+        from ..session.checkout import linked_worktree_root
+
+        return render_ambiguity(
+            projects=attachment.ambiguous,
+            is_worktree=linked_worktree_root(cwd=cwd) is not None,
+        )
     share = max(budget // len(attached), 1)
     blocks = [
         render_project(

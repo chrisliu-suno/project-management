@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .constants import (
+    CHECKOUTS_DIR_NAME,
     DEFAULT_SPINE_DIR_NAME,
     GRAPH_DB_FILE_NAME,
     PICKS_DB_FILE_NAME,
@@ -44,9 +45,14 @@ def sessions_dir() -> Path:
     return spine_home() / SESSIONS_DIR_NAME
 
 
+def checkouts_dir() -> Path:
+    return spine_home() / CHECKOUTS_DIR_NAME
+
+
 def ensure_spine_home() -> Path:
     """Create the state directory tree if it is missing."""
     home = spine_home()
     home.mkdir(parents=True, exist_ok=True)
     sessions_dir().mkdir(parents=True, exist_ok=True)
+    checkouts_dir().mkdir(parents=True, exist_ok=True)
     return home
