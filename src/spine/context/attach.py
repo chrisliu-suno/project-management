@@ -126,11 +126,14 @@ def _best_matches(*, matches):
     return top, ()
 
 
-def _from_signals(*, cwd: Path, registry) -> Attachment:
+def _from_signals(*, cwd: Path, registry, opening_prompt: str | None = None) -> Attachment:
     from ..registry import SignalResolver
 
     matches = SignalResolver(registry=registry).resolve(
-        cwd=cwd, branch=current_branch(cwd=cwd), repo=current_repo(cwd=cwd)
+        cwd=cwd,
+        branch=current_branch(cwd=cwd),
+        repo=current_repo(cwd=cwd),
+        opening_prompt=opening_prompt,
     )
     confident, ambiguous = _best_matches(matches=matches)
     return Attachment(
@@ -143,8 +146,14 @@ def _from_signals(*, cwd: Path, registry) -> Attachment:
     )
 
 
-def attach(*, cwd: Path, session_id: str | None = None) -> Attachment:
-    """The session's projects: its stamp, then this worktree's answer, then signals."""
+def attach(
+    *, cwd: Path, session_id: str | None = None, opening_prompt: str | None = None
+) -> Attachment:
+    """The session's projects: its stamp, then this worktree's answer, then signals.
+
+    `opening_prompt` is what the session said it is about. A checkout shared by several
+    projects carries no signal that separates them, so resolution has to wait for one.
+    """
     from ..registry import load_registry
 
     registry = load_registry()
@@ -154,4 +163,4 @@ def attach(*, cwd: Path, session_id: str | None = None) -> Attachment:
     remembered = _from_checkout(cwd=cwd, registry=registry)
     if remembered is not None:
         return remembered
-    return _from_signals(cwd=cwd, registry=registry)
+    return _from_signals(cwd=cwd, registry=registry, opening_prompt=opening_prompt)

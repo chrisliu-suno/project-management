@@ -80,6 +80,7 @@ class Project:
     repos: tuple[str, ...] = ()
     path_globs: tuple[str, ...] = ()
     branch_prefixes: tuple[str, ...] = ()
+    ticket_prefixes: tuple[str, ...] = ()
     linear_project: str | None = None
 
 

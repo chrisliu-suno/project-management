@@ -44,6 +44,21 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS links_by_dst ON links (dst_id)",
 )
 
+ADDED_DOC_COLUMNS: tuple[tuple[str, str], ...] = (("brief", "TEXT"),)
+
+
+def _add_missing_columns(*, connection: sqlite3.Connection) -> None:
+    """Add columns a store predating them does not have.
+
+    Every schema statement is CREATE TABLE IF NOT EXISTS, so a store built before a column
+    existed keeps its old shape forever and every read of that column raises.
+    """
+    present = {row["name"] for row in connection.execute("PRAGMA table_info(docs)")}
+    for column, column_type in ADDED_DOC_COLUMNS:
+        if column not in present:
+            connection.execute(f"ALTER TABLE docs ADD COLUMN {column} {column_type}")
+
+
 DELETE_PROJECT_DOCS_SQL = "DELETE FROM docs WHERE project_slug = :project_slug"
 DELETE_PROJECT_LINKS_SQL = "DELETE FROM links WHERE project_slug = :project_slug"
 
@@ -177,6 +192,7 @@ class SqliteGraphStore:
         connection.row_factory = sqlite3.Row
         for statement in SCHEMA_STATEMENTS:
             connection.execute(statement)
+        _add_missing_columns(connection=connection)
         return connection
 
     def replace_project(

@@ -91,7 +91,7 @@ def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: in
         return ""
     if has_pick_for_session(session_id=session_id):
         return ""
-    attachment = attach(cwd=cwd, session_id=session_id)
+    attachment = attach(cwd=cwd, session_id=session_id, opening_prompt=task)
     attached = [project for project in attachment.projects if project.docs_dir.is_dir()]
     if not attached:
         return ""

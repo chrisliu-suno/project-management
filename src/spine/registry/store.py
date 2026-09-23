@@ -11,6 +11,7 @@ from ..constants import (
     REGISTRY_KEY_BRANCH_PREFIXES,
     REGISTRY_KEY_DOCS_DIR,
     REGISTRY_KEY_LINEAR_PROJECT,
+    REGISTRY_KEY_TICKET_PREFIXES,
     REGISTRY_KEY_NAME,
     REGISTRY_KEY_PATH_GLOBS,
     REGISTRY_KEY_REPOS,
@@ -95,6 +96,7 @@ def _project_from_table(*, slug: str, table: object) -> Project:
         repos=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_REPOS),
         path_globs=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_PATH_GLOBS),
         branch_prefixes=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_BRANCH_PREFIXES),
+        ticket_prefixes=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_TICKET_PREFIXES),
         linear_project=_optional_string(slug=slug, table=table, key=REGISTRY_KEY_LINEAR_PROJECT),
     )
 
@@ -132,6 +134,7 @@ def _render_project(*, project: Project) -> str:
         f"{REGISTRY_KEY_REPOS} = {_render_array(values=project.repos)}",
         f"{REGISTRY_KEY_PATH_GLOBS} = {_render_array(values=project.path_globs)}",
         f"{REGISTRY_KEY_BRANCH_PREFIXES} = {_render_array(values=project.branch_prefixes)}",
+        f"{REGISTRY_KEY_TICKET_PREFIXES} = {_render_array(values=project.ticket_prefixes)}",
     ]
     if project.linear_project is not None:
         lines.append(
