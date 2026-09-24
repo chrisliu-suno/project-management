@@ -126,29 +126,14 @@ class BudgetedPicker:
     def pick(self, *, project: Project, task_context: str, line_budget: int) -> Selection:
         """Highest ranked docs that fit the budget, plus what the budget forced out."""
         corpus = self._graph_store.docs_for_project(project_slug=project.slug)
-        neighbours_of = neighbour_lookup_for(graph_store=self._graph_store)
-        chosen: list[Doc] = []
-        dropped: list[Doc] = []
-        lines_used = 0
-        for group in self._group_order():
-            candidates = [doc for doc in corpus if doc.read_when == group]
-            if not candidates:
-                continue
-            fill = fill_group(
-                candidates=candidates,
-                allowance=group_allowance(group=group, remaining_lines=line_budget - lines_used),
-                chosen_ids=frozenset(doc.doc_id for doc in chosen),
-                task_context=task_context,
-                neighbours_of=neighbours_of,
-            )
-            chosen.extend(fill.chosen)
-            dropped.extend(fill.dropped)
-            lines_used += fill.lines_used
+        chosen, dropped, lines_used = self._fill_corpus(
+            corpus=list(corpus), task_context=task_context, line_budget=line_budget
+        )
         return Selection(
-            chosen=tuple(chosen),
-            dropped=tuple(dropped),
+            chosen=chosen,
+            dropped=dropped,
             total_lines=lines_used,
-            reason=reason_for(chosen=tuple(chosen), dropped=tuple(dropped)),
+            reason=reason_for(chosen=chosen, dropped=dropped),
         )
 
     def pick_across_projects(
@@ -164,7 +149,36 @@ class BudgetedPicker:
             for project in projects
             for doc in self._graph_store.docs_for_project(project_slug=project.slug)
         ]
+        chosen, dropped, _ = self._fill_corpus(
+            corpus=corpus, task_context=task_context, line_budget=line_budget
+        )
+        return {
+            project.slug: selection_for_project(
+                project_slug=project.slug, chosen=chosen, dropped=dropped
+            )
+            for project in projects
+        }
+
+    def _fill_corpus(
+        self, *, corpus: list[Doc], task_context: str, line_budget: int
+    ) -> tuple[tuple[Doc, ...], tuple[Doc, ...], int]:
+        """Chosen documents, dropped documents and lines spent, within one budget.
+
+        A caller that named its groups wants them ranked as one pool: for a task, relevance
+        decides, and an in-area document is not automatically worth more than a looked-up one.
+        The bulk-injection path keeps its tiers, which is what the every-time reserve is for.
+        """
         neighbours_of = neighbour_lookup_for(graph_store=self._graph_store)
+        if self._group_order_override is not None:
+            wanted = frozenset(self._group_order_override)
+            fill = fill_group(
+                candidates=[doc for doc in corpus if doc.read_when in wanted],
+                allowance=line_budget,
+                chosen_ids=frozenset(),
+                task_context=task_context,
+                neighbours_of=neighbours_of,
+            )
+            return fill.chosen, fill.dropped, fill.lines_used
         chosen: list[Doc] = []
         dropped: list[Doc] = []
         lines_used = 0
@@ -182,12 +196,7 @@ class BudgetedPicker:
             chosen.extend(fill.chosen)
             dropped.extend(fill.dropped)
             lines_used += fill.lines_used
-        return {
-            project.slug: selection_for_project(
-                project_slug=project.slug, chosen=tuple(chosen), dropped=tuple(dropped)
-            )
-            for project in projects
-        }
+        return tuple(chosen), tuple(dropped), lines_used
 
     def _group_order(self) -> tuple[ReadWhen, ...]:
         if self._group_order_override is not None:
