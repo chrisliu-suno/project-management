@@ -296,3 +296,10 @@ def test_cli_reports_a_malformed_registry(capsys: pytest.CaptureFixture[str]) ->
     _write_raw_registry(body="[projects.orbital-relay\n")
     assert main(["registry", "list"]) == EXIT_ERROR
     assert capsys.readouterr().err.strip() != ""
+
+
+def test_a_path_glob_alone_clears_the_auto_attach_floor(spine_home: Path) -> None:
+    """A directory declared for one project should attach without a branch or repo signal."""
+    resolver = _resolver_with(projects=(_relay_project(root=spine_home),))
+    matches = resolver.resolve(cwd=spine_home / "relay-uplink")
+    assert matches[0].confidence >= MIN_CONFIDENCE_FOR_AUTO_ATTACH

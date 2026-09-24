@@ -58,7 +58,9 @@ REGISTRY_BARE_KEY_EXTRA_CHARS = "-_"
 
 REPO_MATCH_CONFIDENCE = 0.6
 BRANCH_PREFIX_MATCH_CONFIDENCE = 0.5
-PATH_GLOB_MATCH_CONFIDENCE = 0.4
+# A glob is written by hand for one project, so it carries the same weight as a branch prefix
+# and is enough to attach on its own.
+PATH_GLOB_MATCH_CONFIDENCE = 0.5
 PROMPT_MENTION_CONFIDENCE = 0.3
 # A ticket key names exactly one project; unlike a repo or the word "access", nothing shares it.
 TICKET_PREFIX_MATCH_CONFIDENCE = 0.9
