@@ -24,7 +24,9 @@ ANCHOR_SEPARATOR = "#"
 BARE_MENTION_TEMPLATE = r"(?<![\w./-])({alternatives})(?!\w)"
 
 SUPERSEDED_BY_PATTERN = re.compile(r"\bsuperseded\s+by\b", re.IGNORECASE)
-SUPERSEDES_PATTERN = re.compile(r"\bsupersede[sd]?\b", re.IGNORECASE)
+# Active voice only: the bare participle ("marked superseded") describes the target's
+# state, not a claim the citing document makes.
+SUPERSEDES_PATTERN = re.compile(r"\bsupersedes?\b", re.IGNORECASE)
 CITED_BY_PATTERN = re.compile(r"\bcited\s+by\b", re.IGNORECASE)
 RAMPS_PATTERN = re.compile(r"\bramps?\b", re.IGNORECASE)
 VERIFIES_PATTERN = re.compile(r"\bverif(?:ies|ied|y)\b", re.IGNORECASE)

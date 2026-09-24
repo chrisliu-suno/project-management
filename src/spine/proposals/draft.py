@@ -14,6 +14,8 @@ from .model import Proposal, ProposalKind, ProposalState
 CONTENT_ENCODING = "utf-8"
 ID_DIGEST_LENGTH = 12
 DRAFT_TARGET_KINDS = (DocKind.BRIEF, DocKind.DECISION_LOG, DocKind.MILESTONE)
+LINE_SEPARATOR = "\n"
+MARKDOWN_HEADING_PREFIX = "#"
 
 
 def proposal_id_for(*, doc_id: str, body: str) -> str:
@@ -77,13 +79,45 @@ def draft_from_drift(
     )
 
 
+def _end_of_section(*, lines: list[str], heading_index: int) -> int:
+    """Index one past the last line belonging to the section opened at heading_index."""
+    for offset, line in enumerate(lines[heading_index + 1 :], start=heading_index + 1):
+        if line.startswith(MARKDOWN_HEADING_PREFIX):
+            return offset
+    return len(lines)
+
+
+def _folded_into(*, existing: str, body: str) -> str | None:
+    """The document with the proposal folded in, or None when it adds nothing.
+
+    A proposal is drafted against the corpus as it stood then, so its heading and
+    some of its lines can already be in the document by the time it is applied.
+    """
+    heading, _, entries = body.partition(LINE_SEPARATOR)
+    lines = existing.splitlines()
+    present = frozenset(line.strip() for line in lines if line.strip())
+    fresh = [
+        line.strip() for line in entries.splitlines() if line.strip() and line.strip() not in present
+    ]
+    if not fresh:
+        return None
+    if heading not in present:
+        return LINE_SEPARATOR.join([*lines, "", heading, "", *fresh]) + "\n"
+    heading_index = lines.index(heading)
+    end = _end_of_section(lines=lines, heading_index=heading_index)
+    kept = [line for line in lines[heading_index:end] if line.strip()]
+    rebuilt = [*lines[:heading_index], *kept, *fresh, "", *lines[end:]]
+    return LINE_SEPARATOR.join(rebuilt).rstrip("\n") + "\n"
+
+
 def apply_proposal(*, proposal: Proposal) -> bool:
-    """Append the proposed text to its document; returns False when the file is gone."""
+    """Append the proposed text to its document; returns False when nothing was written."""
     target = Path(proposal.doc_path)
     if not target.is_file():
         return False
     existing = target.read_text(encoding=CONTENT_ENCODING).rstrip("\n")
-    target.write_text(
-        f"{existing}\n\n{proposal.body}\n", encoding=CONTENT_ENCODING
-    )
+    folded = _folded_into(existing=existing, body=proposal.body)
+    if folded is None:
+        return False
+    target.write_text(folded, encoding=CONTENT_ENCODING)
     return True

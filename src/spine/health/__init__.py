@@ -15,6 +15,7 @@ from .findings import (
     every_time_findings,
     orphan_findings,
     unclassified_findings,
+    unrecognised_frontmatter_findings,
 )
 from .snapshot import build_all_snapshots, build_snapshot
 
@@ -29,11 +30,13 @@ __all__ = [
     "orphan_findings",
     "register_subcommand",
     "unclassified_findings",
+    "unrecognised_frontmatter_findings",
 ]
 
 EXIT_PROBLEMS_FOUND = 1
 EXIT_UNKNOWN_PROJECT = 4
 FIELD_SEPARATOR = "\t"
+DOC_LINE_PREFIX = "\t\t"
 
 
 def _snapshots_for(*, slug: str | None):
@@ -59,6 +62,9 @@ def _handle_check(args: argparse.Namespace) -> int:
         for finding in snapshot.findings:
             has_problem = has_problem or finding.severity is Severity.PROBLEM
             print(FIELD_SEPARATOR.join((str(finding.severity), finding.code, finding.headline)))
+            if finding.severity is not Severity.OK:
+                for doc_id in finding.doc_ids:
+                    print(f"{DOC_LINE_PREFIX}{doc_id}")
     return EXIT_PROBLEMS_FOUND if has_problem else EXIT_OK
 
 
