@@ -23,7 +23,14 @@ from ..constants import (
 from ..model import Project, Selection
 from .rank import NeighbourLookup, no_neighbours, rank_docs, score_doc, terms_in
 from .record import PickSummary, SqlitePickRecorder, summarize_picks
-from .select import BudgetedPicker, GroupFill, fill_group, group_allowance, reason_for
+from .select import (
+    BudgetedPicker,
+    GroupFill,
+    fill_group,
+    group_allowance,
+    reason_for,
+    selection_for_project,
+)
 
 __all__ = [
     "BudgetedPicker",
@@ -38,6 +45,7 @@ __all__ = [
     "reason_for",
     "register_subcommand",
     "score_doc",
+    "selection_for_project",
     "summarize_picks",
     "terms_in",
 ]

@@ -146,19 +146,13 @@ def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: in
     if not attached:
         return ""
     is_resolved = bool(attachment.projects)
-    blocks = [
-        rendered
-        for project in attached
-        if (
-            rendered := _pick_for_project(
-                project=project,
-                session_id=session_id,
-                task=task,
-                budget=max(budget // len(attached), 1),
-                confidence=EXACT_MATCH_CONFIDENCE if is_resolved else AMBIGUOUS_PICK_CONFIDENCE,
-            )
-        )
-    ]
+    blocks = _pick_across_projects(
+        projects=tuple(attached),
+        session_id=session_id,
+        task=task,
+        budget=budget,
+        confidence=EXACT_MATCH_CONFIDENCE if is_resolved else AMBIGUOUS_PICK_CONFIDENCE,
+    )
     if not blocks:
         return ""
     return DOC_SEPARATOR.join((TASK_CONTEXT_HEADER, *blocks))
@@ -176,10 +170,15 @@ def get_candidate_projects(*, attachment: Attachment) -> list[Project]:
     return [project for project in attachment.ambiguous if project.docs_dir.is_dir()]
 
 
-def _pick_for_project(
-    *, project: Project, session_id: str, task: str, budget: int, confidence: float
-) -> str:
-    """One project's task selection, rendered and recorded. Empty when nothing was chosen.
+def _pick_across_projects(
+    *,
+    projects: tuple[Project, ...],
+    session_id: str,
+    task: str,
+    budget: int,
+    confidence: float,
+) -> list[str]:
+    """Rendered blocks for every project that contributed, each selection recorded.
 
     The confidence is the attachment's, not the selection's: documents chosen for a session
     tied across projects are still the right documents to offer, but they do not place its cost.
@@ -188,14 +187,22 @@ def _pick_for_project(
     from ..picker import BudgetedPicker, SqlitePickRecorder
 
     picker = BudgetedPicker(graph_store=open_graph_store(), should_include_rarely=False)
-    selection = picker.pick(project=project, task_context=task, line_budget=budget)
-    SqlitePickRecorder().record(
-        session_id=session_id,
-        project_slug=project.slug,
-        selection=selection,
-        confidence=confidence,
+    selections = picker.pick_across_projects(
+        projects=projects, task_context=task, line_budget=budget
     )
-    return render_task_context(project=project, docs=selection.chosen)
+    recorder = SqlitePickRecorder()
+    blocks: list[str] = []
+    for project in projects:
+        selection = selections[project.slug]
+        recorder.record(
+            session_id=session_id,
+            project_slug=project.slug,
+            selection=selection,
+            confidence=confidence,
+        )
+        if selection.chosen:
+            blocks.append(render_task_context(project=project, docs=selection.chosen))
+    return blocks
 
 
 def _session_id_from(*, override: str | None) -> str | None:

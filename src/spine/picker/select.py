@@ -92,6 +92,20 @@ def reason_for(*, chosen: tuple[Doc, ...], dropped: tuple[Doc, ...]) -> str:
     return PICK_REASON_ALL_FIT
 
 
+def selection_for_project(
+    *, project_slug: str, chosen: tuple[Doc, ...], dropped: tuple[Doc, ...]
+) -> Selection:
+    """One project's share of a selection that was ranked across several."""
+    mine = tuple(doc for doc in chosen if doc.project_slug == project_slug)
+    theirs = tuple(doc for doc in dropped if doc.project_slug == project_slug)
+    return Selection(
+        chosen=mine,
+        dropped=theirs,
+        total_lines=sum(doc.line_count for doc in mine),
+        reason=reason_for(chosen=mine, dropped=theirs),
+    )
+
+
 class BudgetedPicker:
     """Picks documents within a line budget, reserving the every-time group first.
 
@@ -129,6 +143,44 @@ class BudgetedPicker:
             total_lines=lines_used,
             reason=reason_for(chosen=tuple(chosen), dropped=tuple(dropped)),
         )
+
+    def pick_across_projects(
+        self, *, projects: tuple[Project, ...], task_context: str, line_budget: int
+    ) -> dict[str, Selection]:
+        """One selection per project, ranked together against a single shared budget.
+
+        Giving each tied project its own share fills the budget with whatever that corpus
+        happens to hold; ranking them together lets relevance decide which corpus answers.
+        """
+        corpus = [
+            doc
+            for project in projects
+            for doc in self._graph_store.docs_for_project(project_slug=project.slug)
+        ]
+        neighbours_of = neighbour_lookup_for(graph_store=self._graph_store)
+        chosen: list[Doc] = []
+        dropped: list[Doc] = []
+        lines_used = 0
+        for group in self._group_order():
+            candidates = [doc for doc in corpus if doc.read_when == group]
+            if not candidates:
+                continue
+            fill = fill_group(
+                candidates=candidates,
+                allowance=group_allowance(group=group, remaining_lines=line_budget - lines_used),
+                chosen_ids=frozenset(doc.doc_id for doc in chosen),
+                task_context=task_context,
+                neighbours_of=neighbours_of,
+            )
+            chosen.extend(fill.chosen)
+            dropped.extend(fill.dropped)
+            lines_used += fill.lines_used
+        return {
+            project.slug: selection_for_project(
+                project_slug=project.slug, chosen=tuple(chosen), dropped=tuple(dropped)
+            )
+            for project in projects
+        }
 
     def _group_order(self) -> tuple[ReadWhen, ...]:
         if self._should_include_rarely:

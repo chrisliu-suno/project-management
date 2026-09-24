@@ -641,3 +641,38 @@ def test_cli_picks_summary_prints_grouped_counts(
     printed = capsys.readouterr().out
     assert "total: 0" in printed
     assert "low_confidence: 0" in printed
+
+
+def test_tied_projects_share_one_budget_so_relevance_decides() -> None:
+    """Per-project shares fill the budget with whatever each corpus holds, relevant or not."""
+    from spine.picker import BudgetedPicker
+
+    relevant = Doc(
+        doc_id="access:gate",
+        path=Path("gate.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.IN_AREA,
+        title="How the access gate decides",
+        body="# Access gate\n\n" + "line\n" * 30,
+        project_slug="access",
+    )
+    unrelated = Doc(
+        doc_id="dsar:export",
+        path=Path("export.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.IN_AREA,
+        title="Subject export pipeline",
+        body="# Export\n\n" + "line\n" * 30,
+        project_slug="dsar",
+    )
+    picker = BudgetedPicker(graph_store=FakeGraphStore(docs=(relevant, unrelated)))
+    selections = picker.pick_across_projects(
+        projects=(
+            Project(slug="access", name="Access", docs_dir=Path("/tmp/access")),
+            Project(slug="dsar", name="DSAR", docs_dir=Path("/tmp/dsar")),
+        ),
+        task_context="how does the access gate decide?",
+        line_budget=relevant.line_count,
+    )
+    assert [doc.doc_id for doc in selections["access"].chosen] == ["access:gate"]
+    assert selections["dsar"].chosen == ()
