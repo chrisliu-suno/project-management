@@ -8,13 +8,15 @@ from pathlib import Path
 
 from ..cli import EXIT_OK
 from ..constants import (
+    AMBIGUOUS_PICK_CONFIDENCE,
     EXACT_MATCH_CONFIDENCE,
     INJECTION_LINE_BUDGET,
+    PICK_REASON_AMBIGUOUS_INDEX,
     SESSION_CONTEXT_TOTAL_BUDGET,
     SPINE_DISABLED_ENV_VAR,
     SPINE_SESSION_ID_ENV_VAR,
 )
-from ..model import Project
+from ..model import Project, Selection
 from .attach import Attachment, attach, current_branch, current_repo
 from .render import (
     DOC_SEPARATOR,
@@ -58,6 +60,7 @@ def context_for(*, cwd: Path, session_id: str | None, budget: int) -> str:
         )
         if not candidates:
             return render_ambiguity(projects=attachment.ambiguous)
+        record_ambiguous_attachment(session_id=session_id, projects=candidates)
         return render_brief_index(
             corpora=tuple(
                 (project, load_corpus(docs_dir=project.docs_dir, project_slug=project.slug))
@@ -74,6 +77,27 @@ def context_for(*, cwd: Path, session_id: str | None, budget: int) -> str:
         for project in attached
     ]
     return render_context(rendered_projects=tuple(blocks), budget=budget)
+
+
+def record_ambiguous_attachment(*, session_id: str | None, projects: tuple[Project, ...]) -> None:
+    """Record which projects a session was tied between, one row each at zero confidence.
+
+    A tied session picks nothing, so it left no trace and its cost could not be placed. The
+    rows say the session was in this cluster; the confidence says which project is unknown.
+    """
+    from ..picker.record import SqlitePickRecorder
+
+    if not session_id:
+        return
+    recorder = SqlitePickRecorder()
+    empty = Selection(chosen=(), dropped=(), total_lines=0, reason=PICK_REASON_AMBIGUOUS_INDEX)
+    for project in projects:
+        recorder.record(
+            session_id=session_id,
+            project_slug=project.slug,
+            selection=empty,
+            confidence=AMBIGUOUS_PICK_CONFIDENCE,
+        )
 
 
 TASK_CONTEXT_HEADER = "# For this task"
