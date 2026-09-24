@@ -700,9 +700,11 @@ def test_a_task_pick_spends_its_budget_on_in_area_documents() -> None:
         body="# Gate\n\n" + "line\n" * 30,
         project_slug="access",
     )
+    from spine.constants import TASK_PICK_GROUP_ORDER
+
     picker = BudgetedPicker(
         graph_store=FakeGraphStore(docs=(always_read, in_area)),
-        should_include_every_time=False,
+        group_order=TASK_PICK_GROUP_ORDER,
     )
     selection = picker.pick(
         project=Project(slug="access", name="Access", docs_dir=Path("/tmp/access")),
@@ -710,3 +712,28 @@ def test_a_task_pick_spends_its_budget_on_in_area_documents() -> None:
         line_budget=1000,
     )
     assert [doc.doc_id for doc in selection.chosen] == ["access:gate"]
+
+
+def test_a_task_pick_reads_documents_written_to_be_looked_up() -> None:
+    """The highest scoring documents for a question are often the looked-up reference ones."""
+    from spine.constants import TASK_PICK_GROUP_ORDER
+    from spine.picker import BudgetedPicker
+
+    reference = Doc(
+        doc_id="access:debugging",
+        path=Path("debugging.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.LOOKED_UP,
+        title="Debugging an access decision",
+        body="# Debugging\n\n" + "line\n" * 20,
+        project_slug="access",
+    )
+    picker = BudgetedPicker(
+        graph_store=FakeGraphStore(docs=(reference,)), group_order=TASK_PICK_GROUP_ORDER
+    )
+    selection = picker.pick(
+        project=Project(slug="access", name="Access", docs_dir=Path("/tmp/access")),
+        task_context="debugging an access decision",
+        line_budget=1000,
+    )
+    assert [doc.doc_id for doc in selection.chosen] == ["access:debugging"]

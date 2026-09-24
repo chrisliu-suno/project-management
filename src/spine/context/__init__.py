@@ -16,6 +16,7 @@ from ..constants import (
     SPINE_DISABLED_ENV_VAR,
     SPINE_SESSION_ID_ENV_VAR,
     TASK_CONTEXT_LINE_BUDGET,
+    TASK_PICK_GROUP_ORDER,
 )
 from ..model import Project, Selection
 from .attach import (
@@ -187,9 +188,7 @@ def _pick_across_projects(
     from ..picker import BudgetedPicker, SqlitePickRecorder
 
     picker = BudgetedPicker(
-        graph_store=open_graph_store(),
-        should_include_rarely=False,
-        should_include_every_time=False,
+        graph_store=open_graph_store(), group_order=TASK_PICK_GROUP_ORDER
     )
     selections = picker.pick_across_projects(
         projects=projects, task_context=task, line_budget=budget
