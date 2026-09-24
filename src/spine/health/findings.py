@@ -5,8 +5,6 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 
 from ..constants import (
-    DOC_KIND_KEY,
-    DOC_READ_WHEN_KEY,
     EVERY_TIME_RESERVED_LINES,
     HEALTH_DUPLICATE_BODY_OVERLAP,
     HEALTH_DUPLICATE_TITLE_SIMILARITY,
@@ -15,11 +13,11 @@ from ..constants import (
 from ..dashboard import Finding, Severity
 from ..docs.limits import find_cap_breaches
 from ..model import Doc, DocKind, Link, LinkType, ReadWhen
+from ..vocabulary import get_unrecognised_frontmatter_keys
 from .onboarding import onboarding_findings
 
 AGENT_SUFFIX_SEPARATOR = "--"
 CITATION_EXCLUDED_TYPE = LinkType.CITED_BY
-ENUM_FRONTMATTER_KEYS = ((DOC_KIND_KEY, DocKind), (DOC_READ_WHEN_KEY, ReadWhen))
 
 
 def _addressable(*, docs: tuple[Doc, ...]) -> tuple[Doc, ...]:
@@ -237,15 +235,6 @@ def unclassified_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
     )
 
 
-def _unrecognised_enum_keys(*, doc: Doc) -> tuple[str, ...]:
-    return tuple(
-        key
-        for key, enum_type in ENUM_FRONTMATTER_KEYS
-        if isinstance(raw := doc.frontmatter.get(key), str)
-        and raw.strip().lower() not in {str(member) for member in enum_type}
-    )
-
-
 def unrecognised_frontmatter_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
     """Frontmatter declaring a kind or read-when outside the vocabulary.
 
@@ -253,7 +242,9 @@ def unrecognised_frontmatter_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding
     and the document is never selected.
     """
     offenders = sorted(
-        doc.doc_id for doc in _addressable(docs=docs) if _unrecognised_enum_keys(doc=doc)
+        doc.doc_id
+        for doc in _addressable(docs=docs)
+        if get_unrecognised_frontmatter_keys(frontmatter=doc.frontmatter)
     )
     if not offenders:
         return ()

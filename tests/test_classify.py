@@ -241,3 +241,30 @@ def test_cached_classifications_are_reconciled_on_apply() -> None:
     applied = apply_cached_classifications(docs=(first, second), cache=cache)
     briefs = [doc.doc_id for doc in applied if doc.kind is DocKind.BRIEF]
     assert briefs == [second.doc_id]
+
+
+def test_a_kind_outside_the_vocabulary_is_not_a_declaration() -> None:
+    from spine.classify import needs_classification
+
+    stray = _doc(stem="stray", frontmatter={"kind": "design"})
+
+    assert needs_classification(doc=stray) is True
+
+
+def test_a_read_when_outside_the_vocabulary_reopens_a_declared_kind() -> None:
+    from spine.classify import needs_classification
+
+    stray = _doc(
+        stem="stray",
+        frontmatter={"kind": "project_rules", "read_when": "before_extending_an_entity"},
+    )
+
+    assert needs_classification(doc=stray) is True
+
+
+def test_a_kind_inside_the_vocabulary_is_left_alone() -> None:
+    from spine.classify import needs_classification
+
+    declared = _doc(stem="declared", kind=DocKind.PROJECT_RULES, frontmatter={"kind": "project_rules"})
+
+    assert needs_classification(doc=declared) is False

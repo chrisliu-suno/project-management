@@ -14,6 +14,7 @@ from pathlib import Path
 from ..cli import EXIT_OK, EXIT_USAGE
 from ..constants import CLASSIFIER_BATCH_SIZE, CLASSIFIER_MIN_CONFIDENCE, DOC_KIND_KEY
 from ..model import Doc, DocKind, Project
+from ..vocabulary import get_unrecognised_frontmatter_keys
 from .cache import ClassificationCache
 from .client import (
     AnthropicClassifier,
@@ -48,9 +49,11 @@ LOW_CONFIDENCE_MARKER = "low-confidence"
 
 
 def needs_classification(*, doc: Doc) -> bool:
-    """True when the document neither declares its kind nor is a log entry."""
+    """True when the document neither declares a kind the vocabulary knows nor is a log entry."""
     if doc.is_entry:
         return False
+    if get_unrecognised_frontmatter_keys(frontmatter=doc.frontmatter):
+        return True
     if DOC_KIND_KEY in doc.frontmatter:
         return False
     return doc.kind is DocKind.GENERATED
