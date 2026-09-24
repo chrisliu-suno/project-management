@@ -317,3 +317,10 @@ def test_candidates_prefer_a_resolved_project_over_the_tied_set(tmp_path: Path) 
     assert [project.slug for project in get_candidate_projects(attachment=attachment)] == [
         "resolved"
     ]
+
+
+def test_the_task_budget_is_a_fraction_of_a_whole_session() -> None:
+    """One task's documents must not cost what a whole session's do."""
+    from spine.constants import INJECTION_LINE_BUDGET, TASK_CONTEXT_LINE_BUDGET
+
+    assert TASK_CONTEXT_LINE_BUDGET < INJECTION_LINE_BUDGET // 4

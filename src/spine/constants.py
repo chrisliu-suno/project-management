@@ -36,6 +36,9 @@ MAX_LINES_PER_READ_WHEN: dict[ReadWhen, int] = {
 }
 
 INJECTION_LINE_BUDGET = 2500
+# What one task is worth reading before starting it. The injection budget is the ceiling on
+# a whole session's documents, and spending it on the first prompt costs ~25k tokens.
+TASK_CONTEXT_LINE_BUDGET = 400
 EVERY_TIME_RESERVED_LINES = 700
 
 MIN_CONFIDENCE_FOR_SILENT_PICK = 0.6

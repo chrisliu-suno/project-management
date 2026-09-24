@@ -10,12 +10,12 @@ from ..cli import EXIT_OK
 from ..constants import (
     AMBIGUOUS_PICK_CONFIDENCE,
     EXACT_MATCH_CONFIDENCE,
-    INJECTION_LINE_BUDGET,
     PICK_REASON_AMBIGUOUS_INDEX,
     PICK_REASON_ATTACHED,
     SESSION_CONTEXT_TOTAL_BUDGET,
     SPINE_DISABLED_ENV_VAR,
     SPINE_SESSION_ID_ENV_VAR,
+    TASK_CONTEXT_LINE_BUDGET,
 )
 from ..model import Project, Selection
 from .attach import (
@@ -291,5 +291,7 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     task.add_argument("--task", required=True, help="What the session is about to work on.")
     task.add_argument("--cwd", default=None)
     task.add_argument("--session", default=None)
-    task.add_argument("--budget", type=int, default=INJECTION_LINE_BUDGET, help="Line budget.")
+    task.add_argument(
+        "--budget", type=int, default=TASK_CONTEXT_LINE_BUDGET, help="Line budget."
+    )
     task.set_defaults(handler=_handle_task)
