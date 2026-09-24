@@ -8,6 +8,7 @@ from typing import Protocol
 
 from ..constants import (
     AREA_MATCH_WEIGHT,
+    BODY_TERM_MATCH_WEIGHT,
     GRAPH_PROXIMITY_WEIGHT,
     MARKDOWN_HEADING_PREFIX,
     MIN_RANKING_TERM_LENGTH,
@@ -77,6 +78,18 @@ def overlap_score(*, doc: Doc, task_terms: frozenset[str]) -> float:
     return TITLE_TERM_OVERLAP_WEIGHT * len(doc_terms & task_terms) / len(doc_terms)
 
 
+def body_score(*, doc: Doc, task_terms: frozenset[str]) -> float:
+    """Share of the task's terms the body mentions, so a named symbol or state can match.
+
+    Scaled by the task rather than by the document: a long reference covering a term is as
+    much of an answer as a short note covering it.
+    """
+    if not task_terms:
+        return 0.0
+    body_terms = terms_in(text=doc.body)
+    return BODY_TERM_MATCH_WEIGHT * len(body_terms & task_terms) / len(task_terms)
+
+
 def proximity_score(
     *, doc: Doc, chosen_ids: frozenset[str], neighbours_of: NeighbourLookup
 ) -> float:
@@ -94,13 +107,14 @@ def score_doc(
     chosen_ids: frozenset[str] = frozenset(),
     neighbours_of: NeighbourLookup = no_neighbours,
 ) -> float:
-    """Area, heading-overlap and graph-proximity components, summed and quantized.
+    """Area, heading-overlap, body-term and graph-proximity components, summed and quantized.
 
     Quantizing keeps float error from silently pre-empting the doc-id tiebreak.
     """
     total = (
         area_score(doc=doc, task_terms=task_terms)
         + overlap_score(doc=doc, task_terms=task_terms)
+        + body_score(doc=doc, task_terms=task_terms)
         + proximity_score(doc=doc, chosen_ids=chosen_ids, neighbours_of=neighbours_of)
     )
     return round(total, RANKING_SCORE_PRECISION)

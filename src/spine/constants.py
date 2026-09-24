@@ -180,6 +180,9 @@ UNKNOWN_SESSION_ID = "unknown"
 AREA_MATCH_WEIGHT = 3.0
 TITLE_TERM_OVERLAP_WEIGHT = 2.0
 GRAPH_PROXIMITY_WEIGHT = 1.0
+# Headings say what a document is about; the body says what it covers. A question naming
+# a symbol or a state usually matches the body and nothing else.
+BODY_TERM_MATCH_WEIGHT = 2.5
 MIN_RANKING_TERM_LENGTH = 3
 MARKDOWN_HEADING_PREFIX = "#"
 RANKING_TERM_PATTERN = r"[^\W_]+"

@@ -21,7 +21,14 @@ from ..constants import (
     UNKNOWN_SESSION_ID,
 )
 from ..model import Project, Selection
-from .rank import NeighbourLookup, no_neighbours, rank_docs, score_doc, terms_in
+from .rank import (
+    NeighbourLookup,
+    body_score,
+    no_neighbours,
+    rank_docs,
+    score_doc,
+    terms_in,
+)
 from .record import PickSummary, SqlitePickRecorder, summarize_picks
 from .select import (
     BudgetedPicker,
@@ -36,6 +43,7 @@ __all__ = [
     "BudgetedPicker",
     "GroupFill",
     "NeighbourLookup",
+    "body_score",
     "PickSummary",
     "SqlitePickRecorder",
     "fill_group",
