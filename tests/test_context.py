@@ -175,3 +175,34 @@ def test_a_session_that_already_picked_does_not_pick_again(tmp_path: Path) -> No
     )
     assert has_pick_for_session(session_id="s-1", db_path=db_path) is True
     assert has_pick_for_session(session_id="s-2", db_path=db_path) is False
+
+
+def test_a_tied_session_is_recorded_so_its_cost_can_be_traced(tmp_path, monkeypatch) -> None:
+    """A tied session picks nothing, so without this it leaves no trace at all."""
+    from spine.constants import PICK_REASON_AMBIGUOUS_INDEX
+    from spine.context import record_ambiguous_attachment
+    from spine.picker.record import SqlitePickRecorder
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    projects = (
+        Project(slug="alpha", name="Alpha", docs_dir=tmp_path / "alpha"),
+        Project(slug="beta", name="Beta", docs_dir=tmp_path / "beta"),
+    )
+    record_ambiguous_attachment(session_id="tied-1", projects=projects)
+
+    import sqlite3
+
+    rows = sqlite3.connect(SqlitePickRecorder().db_path).execute(
+        "SELECT project_slug, confidence, reason FROM picks WHERE session_id = 'tied-1'"
+        " ORDER BY project_slug"
+    ).fetchall()
+    assert [row[0] for row in rows] == ["alpha", "beta"]
+    assert {row[1] for row in rows} == {0.0}
+    assert {row[2] for row in rows} == {PICK_REASON_AMBIGUOUS_INDEX}
+
+
+def test_a_session_with_no_id_records_nothing() -> None:
+    """Recording under the placeholder id would attribute every anonymous session to one bucket."""
+    from spine.context import record_ambiguous_attachment
+
+    record_ambiguous_attachment(session_id=None, projects=())

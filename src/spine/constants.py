@@ -185,6 +185,9 @@ ON_REQUEST_GROUP_ORDER: tuple[ReadWhen, ...] = (ReadWhen.RARELY,)
 
 PICK_REASON_ALL_FIT = "all_candidates_fit"
 PICK_REASON_NO_CANDIDATES = "no_candidates"
+PICK_REASON_AMBIGUOUS_INDEX = "ambiguous_brief_index"
+# An unresolved attachment is recorded so a session is traceable, not so it is attributed.
+AMBIGUOUS_PICK_CONFIDENCE = 0.0
 PICK_REASON_BUDGET_EXHAUSTED = "budget_exhausted"
 PICK_REASON_EVERY_TIME_OVER_RESERVE = "every_time_over_reserve"
 
