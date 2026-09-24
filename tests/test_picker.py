@@ -766,3 +766,38 @@ def test_a_document_covering_the_named_symbol_outranks_one_that_only_shares_a_he
         task_context="how does allow() decide VIEW_BY_LINK for a trashed clip?",
     )
     assert ranked[0].doc_id == "access:debugging"
+
+
+def test_a_task_pick_prefers_the_better_match_over_the_earlier_group() -> None:
+    """In-area is not automatically worth more than looked-up when a task names the subject."""
+    from spine.constants import TASK_PICK_GROUP_ORDER
+    from spine.picker import BudgetedPicker
+
+    in_area_but_unrelated = Doc(
+        doc_id="access:seats",
+        path=Path("seats.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.IN_AREA,
+        title="Workspace seat grants",
+        body="# Seats\n\nHow enterprise seats are granted.\n" + "line\n" * 20,
+        project_slug="access",
+    )
+    looked_up_and_relevant = Doc(
+        doc_id="access:debugging",
+        path=Path("debugging.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.LOOKED_UP,
+        title="Debugging a decision",
+        body="# Debugging\n\nVIEW_BY_LINK on a trashed clip resolves through allow().\n",
+        project_slug="access",
+    )
+    picker = BudgetedPicker(
+        graph_store=FakeGraphStore(docs=(in_area_but_unrelated, looked_up_and_relevant)),
+        group_order=TASK_PICK_GROUP_ORDER,
+    )
+    selection = picker.pick(
+        project=Project(slug="access", name="Access", docs_dir=Path("/tmp/access")),
+        task_context="how does allow() decide VIEW_BY_LINK for a trashed clip?",
+        line_budget=looked_up_and_relevant.line_count,
+    )
+    assert [doc.doc_id for doc in selection.chosen] == ["access:debugging"]
