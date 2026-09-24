@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..constants import (
+    ATTACHMENT_PICK_REASONS,
     DOC_ID_LIST_SEPARATOR,
     MIN_CONFIDENCE_FOR_SILENT_PICK,
     PICKS_DB_BUSY_TIMEOUT_SECONDS,
@@ -40,8 +41,13 @@ INSERT INTO {PICKS_TABLE_NAME} (
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
+_ATTACHMENT_REASON_PLACEHOLDERS = ", ".join("?" for _ in ATTACHMENT_PICK_REASONS)
+_ATTACHMENT_REASON_VALUES = tuple(sorted(ATTACHMENT_PICK_REASONS))
+
 _SESSION_PICK_SQL = f"""
-SELECT 1 FROM {PICKS_TABLE_NAME} WHERE session_id = ? LIMIT 1
+SELECT 1 FROM {PICKS_TABLE_NAME}
+ WHERE session_id = ? AND reason NOT IN ({_ATTACHMENT_REASON_PLACEHOLDERS})
+ LIMIT 1
 """
 
 _SUMMARY_SQL = f"""
@@ -51,6 +57,7 @@ SELECT
     COALESCE(SUM(has_dropped_every_time), 0),
     COALESCE(SUM(has_in_area_match = 0), 0)
 FROM {PICKS_TABLE_NAME}
+WHERE reason NOT IN ({_ATTACHMENT_REASON_PLACEHOLDERS})
 """
 
 
@@ -151,13 +158,16 @@ class SqlitePickRecorder:
 
 
 def has_pick_for_session(*, session_id: str, db_path: Path | None = None) -> bool:
-    """Whether this session already received a task-driven selection."""
+    """Whether this session already received a task-driven selection.
+
+    Attachment rows name a project but choose no documents, so they do not count."""
     resolved_path = _resolved_db_path(db_path=db_path)
     if not resolved_path.exists():
         return False
     connection = _connect(db_path=resolved_path)
     try:
-        return connection.execute(_SESSION_PICK_SQL, (session_id,)).fetchone() is not None
+        parameters = (session_id, *_ATTACHMENT_REASON_VALUES)
+        return connection.execute(_SESSION_PICK_SQL, parameters).fetchone() is not None
     except sqlite3.Error:
         return False
     finally:
@@ -171,7 +181,8 @@ def summarize_picks(*, db_path: Path | None = None) -> PickSummary:
         return EMPTY_PICK_SUMMARY
     connection = _connect(db_path=resolved_path)
     try:
-        counts = connection.execute(_SUMMARY_SQL, (MIN_CONFIDENCE_FOR_SILENT_PICK,)).fetchone()
+        parameters = (MIN_CONFIDENCE_FOR_SILENT_PICK, *_ATTACHMENT_REASON_VALUES)
+        counts = connection.execute(_SUMMARY_SQL, parameters).fetchone()
     finally:
         connection.close()
     return PickSummary(

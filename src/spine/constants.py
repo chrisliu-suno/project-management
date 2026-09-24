@@ -186,10 +186,18 @@ ON_REQUEST_GROUP_ORDER: tuple[ReadWhen, ...] = (ReadWhen.RARELY,)
 PICK_REASON_ALL_FIT = "all_candidates_fit"
 PICK_REASON_NO_CANDIDATES = "no_candidates"
 PICK_REASON_AMBIGUOUS_INDEX = "ambiguous_brief_index"
+PICK_REASON_ATTACHED = "attached_project"
 # An unresolved attachment is recorded so a session is traceable, not so it is attributed.
 AMBIGUOUS_PICK_CONFIDENCE = 0.0
 PICK_REASON_BUDGET_EXHAUSTED = "budget_exhausted"
 PICK_REASON_EVERY_TIME_OVER_RESERVE = "every_time_over_reserve"
+
+# Rows that say which project a session belongs to, not which documents it was given. They carry
+# no chosen set, so anything reading picks as selections — the task path, the daily summary —
+# has to skip them.
+ATTACHMENT_PICK_REASONS: frozenset[str] = frozenset(
+    {PICK_REASON_AMBIGUOUS_INDEX, PICK_REASON_ATTACHED}
+)
 
 PICKS_TABLE_NAME = "picks"
 DOC_ID_LIST_SEPARATOR = ","

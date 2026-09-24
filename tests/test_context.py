@@ -179,8 +179,8 @@ def test_a_session_that_already_picked_does_not_pick_again(tmp_path: Path) -> No
 
 def test_a_tied_session_is_recorded_so_its_cost_can_be_traced(tmp_path, monkeypatch) -> None:
     """A tied session picks nothing, so without this it leaves no trace at all."""
-    from spine.constants import PICK_REASON_AMBIGUOUS_INDEX
-    from spine.context import record_ambiguous_attachment
+    from spine.constants import AMBIGUOUS_PICK_CONFIDENCE, PICK_REASON_AMBIGUOUS_INDEX
+    from spine.context import record_attachment
     from spine.picker.record import SqlitePickRecorder
 
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
@@ -188,7 +188,12 @@ def test_a_tied_session_is_recorded_so_its_cost_can_be_traced(tmp_path, monkeypa
         Project(slug="alpha", name="Alpha", docs_dir=tmp_path / "alpha"),
         Project(slug="beta", name="Beta", docs_dir=tmp_path / "beta"),
     )
-    record_ambiguous_attachment(session_id="tied-1", projects=projects)
+    record_attachment(
+        session_id="tied-1",
+        projects=projects,
+        confidence=AMBIGUOUS_PICK_CONFIDENCE,
+        reason=PICK_REASON_AMBIGUOUS_INDEX,
+    )
 
     import sqlite3
 
@@ -203,6 +208,61 @@ def test_a_tied_session_is_recorded_so_its_cost_can_be_traced(tmp_path, monkeypa
 
 def test_a_session_with_no_id_records_nothing() -> None:
     """Recording under the placeholder id would attribute every anonymous session to one bucket."""
-    from spine.context import record_ambiguous_attachment
+    from spine.constants import AMBIGUOUS_PICK_CONFIDENCE, PICK_REASON_AMBIGUOUS_INDEX
+    from spine.context import record_attachment
 
-    record_ambiguous_attachment(session_id=None, projects=())
+    record_attachment(
+        session_id=None,
+        projects=(),
+        confidence=AMBIGUOUS_PICK_CONFIDENCE,
+        reason=PICK_REASON_AMBIGUOUS_INDEX,
+    )
+
+
+def test_an_attachment_row_does_not_count_as_a_task_pick(tmp_path: Path) -> None:
+    """A session-start attachment must leave the task path free to choose documents."""
+    from spine.constants import EXACT_MATCH_CONFIDENCE, PICK_REASON_ATTACHED
+    from spine.model import Selection
+    from spine.picker.record import SqlitePickRecorder, has_pick_for_session
+
+    db_path = tmp_path / "picks.sqlite3"
+    SqlitePickRecorder(db_path=db_path).record(
+        session_id="s-1",
+        project_slug=PROJECT_SLUG,
+        selection=Selection(chosen=(), dropped=(), total_lines=0, reason=PICK_REASON_ATTACHED),
+        confidence=EXACT_MATCH_CONFIDENCE,
+    )
+    assert has_pick_for_session(session_id="s-1", db_path=db_path) is False
+
+
+def test_a_resolved_session_records_the_project_it_attached_to(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without this the project join only ever sees tied sessions."""
+    import sqlite3
+
+    import spine.context as context_module
+    from spine.constants import PICK_REASON_ATTACHED
+    from spine.context.attach import Attachment
+    from spine.picker.record import SqlitePickRecorder
+
+    docs_dir = tmp_path / "alpha-docs"
+    docs_dir.mkdir()
+    (docs_dir / "start-here.md").write_text("# Start here\n\nWhat this project is.\n")
+    project = Project(slug=PROJECT_SLUG, name="Alpha", docs_dir=docs_dir)
+    monkeypatch.setattr(
+        context_module,
+        "attach",
+        lambda **_: Attachment(projects=(project,), source="inferred"),
+    )
+
+    context_module.context_for(cwd=tmp_path, session_id="resolved-1", budget=100)
+
+    rows = (
+        sqlite3.connect(SqlitePickRecorder().db_path)
+        .execute(
+            "SELECT project_slug, confidence, reason FROM picks WHERE session_id = 'resolved-1'"
+        )
+        .fetchall()
+    )
+    assert rows == [(PROJECT_SLUG, 1.0, PICK_REASON_ATTACHED)]
