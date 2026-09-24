@@ -74,13 +74,22 @@ dashboard shows them per project card.
 
 ### Scheduling
 
-`spine refresh` is the whole maintenance loop: observe what shipped, rebuild the graph, draft
-proposals. Run it from a launchd agent so the dashboard is never stale:
+`spine refresh` is the whole maintenance loop: observe what shipped, classify documents that
+declare no kind, rebuild the graph, draft proposals. Three launchd agents keep it running —
+the hourly sweep, the dashboard, and the menu bar app. `launchd/install.sh` renders them for
+this checkout and loads them:
 
 ```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.chrisliu.spine-refresh.plist
-launchctl bootout gui/$(id -u)/com.chrisliu.spine-refresh   # to stop
+./launchd/install.sh
+launchctl list | grep spine          # what is loaded
+tail -f ~/.local/state/spine/refresh.log
+launchctl bootout gui/$(id -u)/com.chrisliu.spine-refresh   # to stop the sweep
 ```
+
+The sweep runs through `bin/run-refresh.sh`, which reads the Anthropic key from
+`~/.config/anthropic/env.zsh` — launchd gives a job no shell profile, so without it the classify
+step would report itself unavailable on every run. A sweep with no key still indexes; its output
+line says `classifier unavailable` instead of a count.
 
 To run it by hand, or to see what a sweep would report:
 
