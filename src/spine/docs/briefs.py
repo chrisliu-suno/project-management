@@ -17,12 +17,14 @@ from ..constants import (
     BRIEF_TABLE_MIN_CELLS,
     BRIEF_TEXT_MAX_CHARACTERS,
     MARKDOWN_FRAGMENT_SEPARATOR,
+    MARKDOWN_LINK_PATTERN,
     MARKDOWN_LINK_TARGET_PATTERN,
     MARKDOWN_TABLE_CELL_SEPARATOR,
     MARKDOWN_TABLE_RULE_CHARACTERS,
     METADATA_BOLD_FIELD_PREFIX,
     METADATA_BOLD_FIELD_SUFFIX,
     METADATA_FIELD_SUFFIX,
+    MINIMUM_PURPOSE_WORDS,
     PURPOSE_FIELD_PREFIXES,
     SENTENCE_END_CHARACTERS,
 )
@@ -70,9 +72,24 @@ def get_brief_row_from_cells(*, cells: tuple[str, ...]) -> BriefRow | None:
     for reference_index, brief_index in ((0, 1), (1, 0)):
         stem = get_document_stem_from_cell(cell=cells[reference_index])
         brief = truncate_brief(text=cells[brief_index])
-        if stem and brief and not get_document_stem_from_cell(cell=cells[brief_index]):
+        if stem and brief and check_states_a_purpose(cell=cells[brief_index]):
             return BriefRow(stem=stem, brief=brief)
     return None
+
+
+def check_states_a_purpose(*, cell: str) -> bool:
+    """Whether the cell says something beyond naming other documents.
+
+    A purpose often cites a sibling — "`enterprise-rbac-design.md` replaces it" — so a cell is
+    only rejected when removing its references leaves no prose, which is a cross-reference row.
+    """
+    without_links = MARKDOWN_LINK_PATTERN.sub(" ", cell)
+    remaining = [
+        token
+        for token in without_links.replace("`", " ").split()
+        if not check_names_a_document(reference=strip_fragment(reference=token.strip("()[],;")))
+    ]
+    return len(remaining) >= MINIMUM_PURPOSE_WORDS
 
 
 def get_cells_from_table_line(*, line: str) -> tuple[str, ...] | None:

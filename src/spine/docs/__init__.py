@@ -13,16 +13,28 @@ from ..constants import (
     DOCS_BREACH_ROW_FORMAT,
     DOCS_CHECK_ACTION,
     DOCS_COMMAND_NAME,
+    DOCS_DERIVED_BRIEF_PLACEHOLDER,
     DOCS_DIR_DEST,
     DOCS_DIR_OPTION,
+    DOCS_INDEX_ACTION,
     DOCS_LIST_ACTION,
     DOCS_LIST_ROW_FORMAT,
     DOCS_MISSING_DIR_MESSAGE,
+    DOCS_OUT_DEST,
+    DOCS_OUT_OPTION,
+    DOCS_README_WRITTEN_FORMAT,
+    DOCS_ROOT_DEST,
+    DOCS_ROOT_OPTION,
+    DOCS_UNSTATED_ROW_FORMAT,
+    DOCS_UNSTATED_SUMMARY_FORMAT,
+    EXIT_BRIEF_GAP,
     EXIT_CAP_BREACH,
 )
-from ..model import Doc
+from ..model import Doc, Project
+from ..registry import load_registry
 from .frontmatter import FrontmatterParse, parse_frontmatter
 from .limits import CapBreach, cap_for, find_cap_breaches
+from .readme import render_docs_readme
 from .loader import (
     FilesystemDocSource,
     corpus_paths,
@@ -48,6 +60,7 @@ __all__ = [
     "parse_frontmatter",
     "project_for_dir",
     "register_subcommand",
+    "render_docs_readme",
     "resolve_kind",
     "resolve_read_when",
     "resolve_title",
@@ -64,9 +77,12 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
         handler=_handle_list,
     )
     _add_dir_option(
-        parser=actions.add_parser(DOCS_CHECK_ACTION, help="Report documents over their cap."),
+        parser=actions.add_parser(
+            DOCS_CHECK_ACTION, help="Report documents over their cap or stating no purpose."
+        ),
         handler=_handle_check,
     )
+    _add_index_options(parser=actions.add_parser(DOCS_INDEX_ACTION, help=_INDEX_HELP))
 
 
 SubcommandHandler = Callable[[argparse.Namespace], int]
@@ -114,7 +130,8 @@ def _handle_check(args: argparse.Namespace) -> int:
     docs_dir = getattr(args, DOCS_DIR_DEST)
     if not docs_dir.is_dir():
         return _report_missing_dir(docs_dir=docs_dir)
-    breaches = find_cap_breaches(docs=_load_corpus(docs_dir=docs_dir))
+    docs = _load_corpus(docs_dir=docs_dir)
+    breaches = find_cap_breaches(docs=docs)
     for breach in breaches:
         print(
             DOCS_BREACH_ROW_FORMAT.format(
@@ -125,7 +142,73 @@ def _handle_check(args: argparse.Namespace) -> int:
                 excess_lines=breach.excess_lines,
             )
         )
-    return EXIT_CAP_BREACH if breaches else EXIT_OK
+    unstated = find_unstated_briefs(docs=docs)
+    for doc in unstated:
+        print(
+            DOCS_UNSTATED_ROW_FORMAT.format(
+                path=doc.path.name, brief=doc.brief or DOCS_DERIVED_BRIEF_PLACEHOLDER
+            )
+        )
+    if unstated:
+        print(
+            DOCS_UNSTATED_SUMMARY_FORMAT.format(unstated=len(unstated), total=len(docs)),
+            file=sys.stderr,
+        )
+    if breaches:
+        return EXIT_CAP_BREACH
+    return EXIT_BRIEF_GAP if unstated else EXIT_OK
+
+
+def find_unstated_briefs(*, docs: tuple[Doc, ...]) -> tuple[Doc, ...]:
+    """Documents whose purpose was guessed from their body rather than stated for them."""
+    return tuple(doc for doc in docs if not doc.is_entry and not doc.is_brief_stated)
+
+
+_INDEX_HELP = "Write one page indexing every document in every registered project."
+
+
+def _add_index_options(*, parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        DOCS_OUT_OPTION, dest=DOCS_OUT_DEST, type=Path, default=None, help="Page to write."
+    )
+    parser.add_argument(
+        DOCS_ROOT_OPTION,
+        dest=DOCS_ROOT_DEST,
+        type=Path,
+        default=None,
+        help="Directory document links are relative to; defaults to the page's directory.",
+    )
+    parser.set_defaults(handler=_handle_index)
+
+
+def _handle_index(args: argparse.Namespace) -> int:
+    out_path = getattr(args, DOCS_OUT_DEST)
+    root = getattr(args, DOCS_ROOT_DEST) or (out_path.parent if out_path else Path.cwd())
+    corpora = load_registered_corpora()
+    page = render_docs_readme(corpora=corpora, root=root.resolve())
+    if out_path is None:
+        print(page, end="")
+        return EXIT_OK
+    out_path.write_text(page)
+    print(
+        DOCS_README_WRITTEN_FORMAT.format(
+            path=out_path,
+            documents=sum(len(docs) for _, docs in corpora),
+            projects=len(corpora),
+        ),
+        file=sys.stderr,
+    )
+    return EXIT_OK
+
+
+def load_registered_corpora() -> tuple[tuple[Project, tuple[Doc, ...]], ...]:
+    """Every registered project that has a corpus on disk, with its documents loaded."""
+    source = FilesystemDocSource()
+    return tuple(
+        (project, source.load_all(project=project))
+        for project in load_registry().all_projects()
+        if project.docs_dir.is_dir()
+    )
 
 
 def _load_corpus(*, docs_dir: Path) -> tuple[Doc, ...]:

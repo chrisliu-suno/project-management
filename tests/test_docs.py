@@ -15,6 +15,7 @@ from spine.constants import (
     DOCS_COMMAND_NAME,
     DOCS_DIR_OPTION,
     DOCS_LIST_ACTION,
+    EXIT_BRIEF_GAP,
     EXIT_CAP_BREACH,
 )
 from spine.docs import (
@@ -319,9 +320,36 @@ def test_docs_list_command_prints_a_row_per_doc(capsys: pytest.CaptureFixture[st
     assert len(printed) == EXPECTED_FIXTURE_COUNT
 
 
-def test_docs_check_command_passes_on_a_clean_corpus(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["docs", "check", "--dir", str(FIXTURE_CORPUS_DIR)]) == 0
+def test_docs_check_command_reports_documents_that_state_no_purpose(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The fixture corpus is within its caps but names no document in an index table."""
+    assert main(["docs", "check", "--dir", str(FIXTURE_CORPUS_DIR)]) == EXIT_BRIEF_GAP
+    assert "no stated purpose" in capsys.readouterr().out
+
+
+def test_docs_check_command_passes_on_a_corpus_that_names_its_documents(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_doc(
+        corpus_dir=tmp_path,
+        name="brief.md",
+        text=(
+            "---\nkind: brief\n---\n\n**Purpose:** the entry point\n\n"
+            "| Read | For |\n|---|---|\n| `topic.md` | what the topic is for |\n"
+        ),
+    )
+    _write_doc(corpus_dir=tmp_path, name="topic.md", text="# Topic\n\nBody.\n")
+    assert main(["docs", "check", "--dir", str(tmp_path)]) == 0
     assert capsys.readouterr().out == ""
+
+
+def test_a_cap_breach_outranks_a_missing_purpose(tmp_path: Path) -> None:
+    """A document over its cap is the louder failure; both are reported."""
+    over_cap = cap_for(read_when=ReadWhen.EVERY_TIME) * OVERSIZED_MULTIPLIER
+    body = "\n".join(f"line {number}" for number in range(over_cap))
+    _write_doc(corpus_dir=tmp_path, name="brief.md", text=f"---\nkind: brief\n---\n\n{body}\n")
+    assert main(["docs", "check", "--dir", str(tmp_path)]) == EXIT_CAP_BREACH
 
 
 def test_docs_check_command_fails_on_a_breach(

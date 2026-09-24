@@ -27,7 +27,12 @@ from ..constants import (
     PROJECT_SLUG_SEPARATOR,
 )
 from ..model import DEFAULT_READ_WHEN, Doc, DocKind, Lifecycle, Project, ReadWhen
-from .briefs import get_briefs_from_body, get_fallback_brief_from_body
+from .briefs import (
+    get_briefs_from_body,
+    get_fallback_brief_from_body,
+    get_purpose_field_from_body,
+    truncate_brief,
+)
 from .frontmatter import parse_frontmatter
 
 
@@ -57,6 +62,7 @@ class FilesystemDocSource:
             project_slug=project.slug,
             area=_optional_text(mapping=parsed.mapping, key=DOC_AREA_KEY),
             brief=_optional_text(mapping=parsed.mapping, key=DOC_BRIEF_KEY),
+            is_brief_stated=_optional_text(mapping=parsed.mapping, key=DOC_BRIEF_KEY) is not None,
             lifecycle=_coerce_enum(raw=parsed.mapping.get(DOC_LIFECYCLE_KEY), enum_type=Lifecycle),
             frontmatter=dict(parsed.mapping),
             is_generated=_resolve_is_generated(mapping=parsed.mapping),
@@ -64,16 +70,29 @@ class FilesystemDocSource:
 
 
 def apply_harvested_briefs(*, docs: tuple[Doc, ...]) -> None:
-    """Fill each doc's brief from the corpus's brief documents, leaving declared ones alone."""
+    """Fill each doc's brief from the corpus's brief documents, leaving declared ones alone.
+
+    A brief taken from an index table is stated; one derived from the body is a guess, and
+    `spine docs check` reports the difference so a corpus cannot quietly stop describing itself.
+    """
     harvested: dict[str, str] = {}
     for doc in docs:
         if doc.kind == DocKind.BRIEF:
             harvested.update(get_briefs_from_body(body=doc.body))
     for doc in docs:
-        if doc.brief is None:
-            doc.brief = harvested.get(doc.path.stem) or get_fallback_brief_from_body(
-                body=doc.body
-            )
+        if doc.brief is not None:
+            continue
+        stated = harvested.get(doc.path.stem)
+        if stated:
+            doc.brief = stated
+            doc.is_brief_stated = True
+            continue
+        declared = get_purpose_field_from_body(body=doc.body)
+        if declared:
+            doc.brief = truncate_brief(text=declared)
+            doc.is_brief_stated = True
+            continue
+        doc.brief = get_fallback_brief_from_body(body=doc.body)
 
 
 def corpus_paths(*, docs_dir: Path) -> tuple[Path, ...]:

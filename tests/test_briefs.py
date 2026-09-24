@@ -7,6 +7,7 @@ from pathlib import Path
 from spine.context.render import render_brief_index, render_brief_line
 from spine.docs.briefs import (
     check_is_metadata_line,
+    check_states_a_purpose,
     get_briefs_from_body,
     get_document_stem_from_cell,
     get_fallback_brief_from_body,
@@ -247,6 +248,18 @@ def test_a_reversed_table_takes_the_question_as_the_purpose() -> None:
     }
 
 
-def test_a_row_linking_a_document_in_both_cells_is_not_a_brief() -> None:
-    """Neither cell states a purpose, so the row is a cross-reference, not an index entry."""
+def test_a_purpose_may_name_the_document_it_supersedes() -> None:
+    """Overlapping designs cite each other; rejecting those rows lost the most useful briefs."""
+    body = (
+        "| Read | For |\n|---|---|\n"
+        "| `rbac-design.md` | the superseded design; `enterprise-rbac-design.md` replaces it |\n"
+    )
+    assert get_briefs_from_body(body=body) == {
+        "rbac-design": "the superseded design; enterprise-rbac-design.md replaces it"
+    }
+
+
+def test_a_row_that_is_only_cross_references_states_no_purpose() -> None:
     assert get_briefs_from_body(body="| [a](a.md) | [b](b.md) |\n") == {}
+    assert check_states_a_purpose(cell="[Debugging runbook](debugging.md)") is False
+    assert check_states_a_purpose(cell="how do I investigate a failure?") is True
