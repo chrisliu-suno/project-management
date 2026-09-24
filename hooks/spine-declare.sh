@@ -5,7 +5,9 @@ set -uo pipefail
 [[ -n "${SPINE_DISABLED:-}" ]] && exit 0
 command -v spine >/dev/null 2>&1 || exit 0
 
-session_id="${SPINE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+payload="$(cat 2>/dev/null || true)"
+source "$HOME/.claude/hooks/spine-session-id.sh"
+session_id="$(spine_session_id "$payload")"
 [[ -z "$session_id" ]] && exit 0
 
 projects="$(spine context which --cwd "$PWD" 2>/dev/null | awk '{print $1}' | paste -sd, -)"

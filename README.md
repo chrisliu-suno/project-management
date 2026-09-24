@@ -142,6 +142,24 @@ Everything derived lives under `$SPINE_HOME` (defaults to `$XDG_STATE_HOME/spine
 Documents themselves stay in each project's own directory, outside any repo, so they survive
 branch switches and concurrent agents.
 
+## Session hooks
+
+`hooks/` holds the scripts Claude Code runs, and `hooks/install.sh` symlinks them into
+`~/.claude/hooks` so the running copy is this one. Registering them in `settings.json` stays
+manual — that file is shared with other tools.
+
+| Hook | Event | Does |
+|---|---|---|
+| `spine-context.sh` | SessionStart | injects the always-read documents, or the brief index when several projects tie |
+| `spine-declare.sh` | SessionStart | registers the session on the dashboard with its projects |
+| `spine-intent.sh` | UserPromptSubmit | re-declares with the prompt as intent, then picks task documents once |
+| `spine-edit-guard.sh` | PreToolUse | warns before editing a document the corpus depends on |
+| `spine-steering.sh` | Stop | delivers queued steering messages |
+| `spine-session-id.sh` | — | shared helper; reads the session id out of a hook payload |
+
+`spine refresh` runs hourly under `com.chrisliu.spine-refresh`, which is what keeps the index
+current enough for a pick to be worth reading.
+
 ## Develop
 
 ```sh
