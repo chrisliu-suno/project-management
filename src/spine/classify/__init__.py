@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..cli import EXIT_OK, EXIT_USAGE
 from ..constants import CLASSIFIER_BATCH_SIZE, CLASSIFIER_MIN_CONFIDENCE, DOC_KIND_KEY
-from ..model import Doc, DocKind
+from ..model import Doc, DocKind, Project
 from .cache import ClassificationCache
 from .client import (
     AnthropicClassifier,
@@ -35,6 +35,7 @@ __all__ = [
     "brief_health",
     "classification_schema",
     "classify_corpus",
+    "classify_unknown_docs",
     "reconcile",
     "needs_classification",
     "register_subcommand",
@@ -108,6 +109,21 @@ def classify_corpus(
         for doc in docs
     )
 
+
+
+def classify_unknown_docs(*, project: Project) -> int:
+    """Give a kind to every document in the project that has none cached, returning how many."""
+    from ..docs import FilesystemDocSource
+
+    cache = ClassificationCache()
+    docs = FilesystemDocSource().load_all(project=project)
+    pending = tuple(doc for doc in docs if needs_classification(doc=doc))
+    _, uncached = _from_cache(docs=pending, cache=cache)
+    if not uncached:
+        return 0
+    classify_corpus(docs=docs, classifier=AnthropicClassifier(), cache=cache)
+    _, still_uncached = _from_cache(docs=uncached, cache=cache)
+    return len(uncached) - len(still_uncached)
 
 
 def brief_health(*, docs: tuple[Doc, ...]) -> str | None:

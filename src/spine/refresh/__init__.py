@@ -12,7 +12,14 @@ from dataclasses import dataclass
 
 from ..cli import EXIT_OK
 
-__all__ = ["ProjectRefresh", "refresh_all", "refresh_project", "register_subcommand"]
+__all__ = [
+    "ClassifierOutcome",
+    "ProjectRefresh",
+    "classify_new_docs",
+    "refresh_all",
+    "refresh_project",
+    "register_subcommand",
+]
 
 EXIT_UNKNOWN_PROJECT = 4
 FIELD_SEPARATOR = "\t"
@@ -28,16 +35,23 @@ class ProjectRefresh:
     proposals_queued: int
     decisions_found: int = 0
     plan_moved: bool = False
+    docs_classified: int = 0
+    classifier_error: str | None = None
     error: str | None = None
 
     def as_line(self) -> str:
         if self.error is not None:
             return FIELD_SEPARATOR.join((self.slug, "error", self.error))
+        if self.classifier_error is None:
+            classifier_field = f"{self.docs_classified} newly classified"
+        else:
+            classifier_field = f"classifier unavailable: {self.classifier_error}"
         return FIELD_SEPARATOR.join(
             (
                 self.slug,
                 f"{self.doc_count} docs",
                 f"{self.fact_count} facts",
+                classifier_field,
                 f"{self.proposals_queued} new proposal(s)",
                 f"{self.decisions_found} new decision(s)",
                 "plan moved" if self.plan_moved else "plan unchanged",
@@ -45,14 +59,33 @@ class ProjectRefresh:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ClassifierOutcome:
+    """How many documents the sweep gave a kind to, or why it could not."""
+
+    docs_classified: int = 0
+    error: str | None = None
+
+
+def classify_new_docs(*, project) -> ClassifierOutcome:
+    """Classify documents added since the last sweep, tolerating a classifier that cannot run."""
+    from ..classify import ClassifierRefusedError, ModelUnavailableError, classify_unknown_docs
+
+    try:
+        return ClassifierOutcome(docs_classified=classify_unknown_docs(project=project))
+    except (ModelUnavailableError, ClassifierRefusedError) as cause:
+        return ClassifierOutcome(error=str(cause))
+
+
 def refresh_project(*, project) -> ProjectRefresh:
-    """Observe what shipped, rebuild the graph, then draft any new proposals."""
+    """Observe what shipped, classify what is new, rebuild the graph, then draft any proposals."""
     from ..decisions import record_for_project
     from ..facts import FactStore, observe_project
     from ..index import build_project
     from ..plan.history import record_for_project as record_plan_point
     from ..proposals import generate_for_project
 
+    classifier = classify_new_docs(project=project)
     try:
         observe_project(project=project)
         docs, _ = build_project(docs_dir=project.docs_dir, project_slug=project.slug)
@@ -70,6 +103,8 @@ def refresh_project(*, project) -> ProjectRefresh:
         proposals_queued=queued,
         decisions_found=decisions,
         plan_moved=plan_moved,
+        docs_classified=classifier.docs_classified,
+        classifier_error=classifier.error,
     )
 
 
