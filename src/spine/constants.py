@@ -187,6 +187,9 @@ RANKING_SCORE_PRECISION = 9
 
 BULK_INJECTION_GROUP_ORDER: tuple[ReadWhen, ...] = (ReadWhen.EVERY_TIME, ReadWhen.IN_AREA)
 ON_REQUEST_GROUP_ORDER: tuple[ReadWhen, ...] = (ReadWhen.RARELY,)
+# What a task pick reads: the documents for this area, plus the ones written to be fetched
+# when a question calls for them. Always-read documents arrive at session start instead.
+TASK_PICK_GROUP_ORDER: tuple[ReadWhen, ...] = (ReadWhen.IN_AREA, ReadWhen.LOOKED_UP)
 
 PICK_REASON_ALL_FIT = "all_candidates_fit"
 PICK_REASON_NO_CANDIDATES = "no_candidates"
