@@ -737,3 +737,32 @@ def test_a_task_pick_reads_documents_written_to_be_looked_up() -> None:
         line_budget=1000,
     )
     assert [doc.doc_id for doc in selection.chosen] == ["access:debugging"]
+
+
+def test_a_document_covering_the_named_symbol_outranks_one_that_only_shares_a_heading() -> None:
+    """A question naming a symbol or a state usually matches the body and nothing else."""
+    from spine.picker.rank import rank_docs
+
+    covers_it = Doc(
+        doc_id="access:debugging",
+        path=Path("debugging.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.LOOKED_UP,
+        title="Debugging a decision",
+        body="# Debugging\n\nVIEW_BY_LINK on a trashed clip resolves through allow().\n",
+        project_slug="access",
+    )
+    shares_a_word = Doc(
+        doc_id="access:onboarding",
+        path=Path("onboarding.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.LOOKED_UP,
+        title="Clip onboarding checklist",
+        body="# Clip onboarding\n\nRegister the entity and write the migration.\n",
+        project_slug="access",
+    )
+    ranked = rank_docs(
+        docs=[shares_a_word, covers_it],
+        task_context="how does allow() decide VIEW_BY_LINK for a trashed clip?",
+    )
+    assert ranked[0].doc_id == "access:debugging"
