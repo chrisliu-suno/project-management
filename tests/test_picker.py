@@ -676,3 +676,37 @@ def test_tied_projects_share_one_budget_so_relevance_decides() -> None:
     )
     assert [doc.doc_id for doc in selections["access"].chosen] == ["access:gate"]
     assert selections["dsar"].chosen == ()
+
+
+def test_a_task_pick_spends_its_budget_on_in_area_documents() -> None:
+    """Always-read documents arrive at session start; repeating them starves the task pick."""
+    from spine.picker import BudgetedPicker
+
+    always_read = Doc(
+        doc_id="access:sop",
+        path=Path("sop.md"),
+        kind=DocKind.PROJECT_RULES,
+        read_when=ReadWhen.EVERY_TIME,
+        title="How to onboard an entity to access",
+        body="# SOP\n\n" + "line\n" * 30,
+        project_slug="access",
+    )
+    in_area = Doc(
+        doc_id="access:gate",
+        path=Path("gate.md"),
+        kind=DocKind.AREA_DESIGN,
+        read_when=ReadWhen.IN_AREA,
+        title="How the access gate decides",
+        body="# Gate\n\n" + "line\n" * 30,
+        project_slug="access",
+    )
+    picker = BudgetedPicker(
+        graph_store=FakeGraphStore(docs=(always_read, in_area)),
+        should_include_every_time=False,
+    )
+    selection = picker.pick(
+        project=Project(slug="access", name="Access", docs_dir=Path("/tmp/access")),
+        task_context="how does the access gate decide?",
+        line_budget=1000,
+    )
+    assert [doc.doc_id for doc in selection.chosen] == ["access:gate"]
