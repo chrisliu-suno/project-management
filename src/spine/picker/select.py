@@ -112,9 +112,16 @@ class BudgetedPicker:
     Candidates are the bulk-injection groups, plus RARELY when the caller asks for it.
     """
 
-    def __init__(self, *, graph_store: GraphStore, should_include_rarely: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        graph_store: GraphStore,
+        should_include_rarely: bool = False,
+        should_include_every_time: bool = True,
+    ) -> None:
         self._graph_store = graph_store
         self._should_include_rarely = should_include_rarely
+        self._should_include_every_time = should_include_every_time
 
     def pick(self, *, project: Project, task_context: str, line_budget: int) -> Selection:
         """Highest ranked docs that fit the budget, plus what the budget forced out."""
@@ -183,6 +190,9 @@ class BudgetedPicker:
         }
 
     def _group_order(self) -> tuple[ReadWhen, ...]:
+        groups = BULK_INJECTION_GROUP_ORDER
+        if not self._should_include_every_time:
+            groups = tuple(group for group in groups if group != ReadWhen.EVERY_TIME)
         if self._should_include_rarely:
-            return BULK_INJECTION_GROUP_ORDER + ON_REQUEST_GROUP_ORDER
-        return BULK_INJECTION_GROUP_ORDER
+            return groups + ON_REQUEST_GROUP_ORDER
+        return groups

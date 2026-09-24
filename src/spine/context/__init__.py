@@ -186,7 +186,11 @@ def _pick_across_projects(
     from ..index import open_graph_store
     from ..picker import BudgetedPicker, SqlitePickRecorder
 
-    picker = BudgetedPicker(graph_store=open_graph_store(), should_include_rarely=False)
+    picker = BudgetedPicker(
+        graph_store=open_graph_store(),
+        should_include_rarely=False,
+        should_include_every_time=False,
+    )
     selections = picker.pick_across_projects(
         projects=projects, task_context=task, line_budget=budget
     )
