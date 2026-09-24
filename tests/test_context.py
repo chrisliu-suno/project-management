@@ -266,3 +266,54 @@ def test_a_resolved_session_records_the_project_it_attached_to(
         .fetchall()
     )
     assert rows == [(PROJECT_SLUG, 1.0, PICK_REASON_ATTACHED)]
+
+
+def test_a_tied_session_still_gets_task_documents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Glockenspiel ties across five corpora; picking nothing there starves the busiest repo."""
+    import spine.context as context_module
+    from spine.context.attach import Attachment
+
+    docs_dir = tmp_path / "alpha-docs"
+    docs_dir.mkdir()
+    (docs_dir / "gate.md").write_text("# Gate\n\nHow the access gate decides.\n")
+    project = Project(slug=PROJECT_SLUG, name="Alpha", docs_dir=docs_dir)
+    monkeypatch.setattr(
+        context_module,
+        "attach",
+        lambda **_: Attachment(projects=(), source="inferred", ambiguous=(project,)),
+    )
+
+    context_module.task_context_for(
+        cwd=tmp_path, session_id="tied-task-1", task="how does the access gate decide?", budget=200
+    )
+
+    import sqlite3
+
+    from spine.picker.record import SqlitePickRecorder
+
+    rows = (
+        sqlite3.connect(SqlitePickRecorder().db_path)
+        .execute("SELECT project_slug, confidence FROM picks WHERE session_id = 'tied-task-1'")
+        .fetchall()
+    )
+    assert rows == [(PROJECT_SLUG, 0.0)]
+
+
+def test_candidates_prefer_a_resolved_project_over_the_tied_set(tmp_path: Path) -> None:
+    from spine.context import get_candidate_projects
+    from spine.context.attach import Attachment
+
+    resolved_dir = tmp_path / "resolved"
+    tied_dir = tmp_path / "tied"
+    resolved_dir.mkdir()
+    tied_dir.mkdir()
+    attachment = Attachment(
+        projects=(Project(slug="resolved", name="R", docs_dir=resolved_dir),),
+        source="inferred",
+        ambiguous=(Project(slug="tied", name="T", docs_dir=tied_dir),),
+    )
+    assert [project.slug for project in get_candidate_projects(attachment=attachment)] == [
+        "resolved"
+    ]

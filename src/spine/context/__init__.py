@@ -18,7 +18,13 @@ from ..constants import (
     SPINE_SESSION_ID_ENV_VAR,
 )
 from ..model import Project, Selection
-from .attach import Attachment, attach, current_branch, current_repo
+from .attach import (
+    AMBIGUOUS_ATTACHMENT_SOURCE,
+    Attachment,
+    attach,
+    current_branch,
+    current_repo,
+)
 from .render import (
     DOC_SEPARATOR,
     always_read,
@@ -36,6 +42,7 @@ __all__ = [
     "context_for",
     "current_branch",
     "current_repo",
+    "get_candidate_projects",
     "record_attachment",
     "register_subcommand",
     "render_ambiguity",
@@ -125,7 +132,7 @@ TASK_CONTEXT_HEADER = "# For this task"
 def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: int) -> str:
     """Task-relevant documents for a session, chosen once per session and recorded.
 
-    Returns empty when no project is attached, when the session already had a pick,
+    Returns empty when nothing attaches at all, when the session already had a pick,
     or when nothing scored above the floor.
     """
     from ..picker.record import has_pick_for_session
@@ -135,9 +142,10 @@ def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: in
     if has_pick_for_session(session_id=session_id):
         return ""
     attachment = attach(cwd=cwd, session_id=session_id, opening_prompt=task)
-    attached = [project for project in attachment.projects if project.docs_dir.is_dir()]
+    attached = get_candidate_projects(attachment=attachment)
     if not attached:
         return ""
+    is_resolved = bool(attachment.projects)
     blocks = [
         rendered
         for project in attached
@@ -147,6 +155,7 @@ def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: in
                 session_id=session_id,
                 task=task,
                 budget=max(budget // len(attached), 1),
+                confidence=EXACT_MATCH_CONFIDENCE if is_resolved else AMBIGUOUS_PICK_CONFIDENCE,
             )
         )
     ]
@@ -155,8 +164,26 @@ def task_context_for(*, cwd: Path, session_id: str | None, task: str, budget: in
     return DOC_SEPARATOR.join((TASK_CONTEXT_HEADER, *blocks))
 
 
-def _pick_for_project(*, project: Project, session_id: str, task: str, budget: int) -> str:
-    """One project's task selection, rendered and recorded. Empty when nothing was chosen."""
+def get_candidate_projects(*, attachment: Attachment) -> list[Project]:
+    """The projects worth picking documents from: the resolved ones, else the tied candidates.
+
+    A checkout that matches several projects equally is the normal case for a monorepo, and
+    picking nothing there means the repo with the most work gets the least context.
+    """
+    resolved = [project for project in attachment.projects if project.docs_dir.is_dir()]
+    if resolved:
+        return resolved
+    return [project for project in attachment.ambiguous if project.docs_dir.is_dir()]
+
+
+def _pick_for_project(
+    *, project: Project, session_id: str, task: str, budget: int, confidence: float
+) -> str:
+    """One project's task selection, rendered and recorded. Empty when nothing was chosen.
+
+    The confidence is the attachment's, not the selection's: documents chosen for a session
+    tied across projects are still the right documents to offer, but they do not place its cost.
+    """
     from ..index import open_graph_store
     from ..picker import BudgetedPicker, SqlitePickRecorder
 
@@ -166,7 +193,7 @@ def _pick_for_project(*, project: Project, session_id: str, task: str, budget: i
         session_id=session_id,
         project_slug=project.slug,
         selection=selection,
-        confidence=EXACT_MATCH_CONFIDENCE,
+        confidence=confidence,
     )
     return render_task_context(project=project, docs=selection.chosen)
 
@@ -205,6 +232,7 @@ def _handle_which(args: argparse.Namespace) -> int:
         if attachment.ambiguous:
             print("ambiguous — pick one:", file=sys.stderr)
             for project in sorted(attachment.ambiguous, key=lambda found: found.slug):
+                print(f"{project.slug}\t{AMBIGUOUS_ATTACHMENT_SOURCE}")
                 print(f"  spine session set --project {project.slug}", file=sys.stderr)
             return EXIT_OK
         print("no project", file=sys.stderr)
