@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 
 from ..dashboard import Finding, Severity
-from pathlib import Path
-
 from ..model import Doc, Link
 from .model import Fact, FactKind, PullRequestState
 
@@ -89,10 +87,9 @@ def drift_findings(
     docs: tuple[Doc, ...],
     facts: tuple[Fact, ...],
     links: tuple[Link, ...] = (),
-    docs_dir: Path | None = None,
 ) -> tuple[Finding, ...]:
     """Every place the documents, the graph, and the observed facts disagree."""
-    from .staleness import stale_since_shipped, unswept_supersessions
+    from .staleness import unswept_supersessions
 
     found: list[Finding] = []
     if links:
@@ -100,6 +97,4 @@ def drift_findings(
     if facts:
         found.extend(merged_but_undocumented(docs=docs, facts=facts))
         found.extend(documented_but_unmerged(docs=docs, facts=facts))
-        if docs_dir is not None:
-            found.extend(stale_since_shipped(docs=docs, facts=facts, docs_dir=docs_dir))
     return tuple(found)

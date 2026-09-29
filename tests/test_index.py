@@ -186,6 +186,32 @@ def test_superseded_by_phrasing_inverts_the_direction() -> None:
     }
 
 
+def test_a_denied_supersession_asserts_no_supersession() -> None:
+    """"Not superseded by X" says the opposite of the cue its words contain."""
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="tracker",
+        body="Not superseded by #49471 (see `design-scheduler.md`).",
+        kind=DocKind.DECISION_LOG,
+        read_when=ReadWhen.LOG,
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert not any(link.link_type is LinkType.SUPERSEDES for link in links)
+    assert [link.link_type for link in links] == [LinkType.MENTIONS]
+
+
+def test_a_denied_forward_supersession_asserts_no_supersession() -> None:
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="decisions",
+        body="This never supersedes [the closed-interval design](design-scheduler.md).",
+        kind=DocKind.DECISION_LOG,
+        read_when=ReadWhen.LOG,
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert not any(link.link_type is LinkType.SUPERSEDES for link in links)
+
+
 def test_cited_by_phrasing_inverts_the_direction() -> None:
     target = make_doc(stem="design-scheduler", body="Allocator notes.")
     source = make_doc(

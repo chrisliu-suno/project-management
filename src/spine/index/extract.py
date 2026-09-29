@@ -37,6 +37,9 @@ CLASSIFIES_PATTERN = re.compile(r"\bclassif(?:ies|ied|y)\b", re.IGNORECASE)
 CONSTRAINS_PATTERN = re.compile(r"\bconstrains?\b", re.IGNORECASE)
 RELEASED_BY_PATTERN = re.compile(r"\breleased\s+by\b", re.IGNORECASE)
 COVERAGE_IN_PATTERN = re.compile(r"\bcoverage\s+(?:in|for)\b", re.IGNORECASE)
+NEGATION_PATTERN = re.compile(
+    r"\b(?:not|never|no longer|isn't|is not|was not|wasn't|nor|neither)\b", re.IGNORECASE
+)
 
 PhrasingRules = tuple[tuple[re.Pattern[str], LinkType], ...]
 
@@ -157,11 +160,21 @@ def carries_a_claim(*, sentence: str) -> bool:
     return len(sentence) <= MAX_PHRASING_SENTENCE_CHARS
 
 
+def check_is_negated(*, sentence: str, match: re.Match[str]) -> bool:
+    """Whether the words leading up to the cue deny it.
+
+    "Not superseded by #49471" asserts the opposite of the relation its cue names, and reading
+    the relation out of it marks the citing document superseded.
+    """
+    return NEGATION_PATTERN.search(sentence[: match.start()]) is not None
+
+
 def _match_phrasing(*, sentence: str, rules: PhrasingRules) -> LinkType | None:
     if not carries_a_claim(sentence=sentence):
         return None
     for pattern, link_type in rules:
-        if pattern.search(sentence):
+        match = pattern.search(sentence)
+        if match is not None and not check_is_negated(sentence=sentence, match=match):
             return link_type
     return None
 

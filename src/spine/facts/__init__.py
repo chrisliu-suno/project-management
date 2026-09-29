@@ -70,7 +70,6 @@ def drift_for_project(*, project):
         docs=docs,
         facts=facts,
         links=build_links(docs=docs),
-        docs_dir=project.docs_dir,
     )
 
 
