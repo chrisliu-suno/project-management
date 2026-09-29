@@ -11,10 +11,11 @@ from ..constants import (
     REGISTRY_KEY_BRANCH_PREFIXES,
     REGISTRY_KEY_DOCS_DIR,
     REGISTRY_KEY_LINEAR_PROJECT,
-    REGISTRY_KEY_TICKET_PREFIXES,
     REGISTRY_KEY_NAME,
     REGISTRY_KEY_PATH_GLOBS,
     REGISTRY_KEY_REPOS,
+    REGISTRY_KEY_TICKET_PREFIXES,
+    REGISTRY_KEY_TITLE_TERMS,
     REGISTRY_PROJECTS_TABLE,
 )
 from ..model import Project
@@ -97,6 +98,7 @@ def _project_from_table(*, slug: str, table: object) -> Project:
         path_globs=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_PATH_GLOBS),
         branch_prefixes=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_BRANCH_PREFIXES),
         ticket_prefixes=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_TICKET_PREFIXES),
+        title_terms=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_TITLE_TERMS),
         linear_project=_optional_string(slug=slug, table=table, key=REGISTRY_KEY_LINEAR_PROJECT),
     )
 
@@ -136,6 +138,8 @@ def _render_project(*, project: Project) -> str:
         f"{REGISTRY_KEY_BRANCH_PREFIXES} = {_render_array(values=project.branch_prefixes)}",
         f"{REGISTRY_KEY_TICKET_PREFIXES} = {_render_array(values=project.ticket_prefixes)}",
     ]
+    if project.title_terms:
+        lines.append(f"{REGISTRY_KEY_TITLE_TERMS} = {_render_array(values=project.title_terms)}")
     if project.linear_project is not None:
         lines.append(
             f"{REGISTRY_KEY_LINEAR_PROJECT} = {_render_string(value=project.linear_project)}"

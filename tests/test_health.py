@@ -232,6 +232,52 @@ def test_a_same_title_finding_does_not_advise_deletion() -> None:
     assert "delete" not in duplicate_findings(docs=docs)[0].detail.lower()
 
 
+def test_two_agent_drafts_of_one_document_are_competing_drafts() -> None:
+    docs = (
+        _doc(stem="edge-plan--claude", title="Edge plan (Claude)", body=SHARED_BODY),
+        _doc(stem="edge-plan--codex", title="Edge plan (Codex)", body=DIVERGENT_BODY),
+    )
+    found = duplicate_findings(docs=docs)
+    assert [finding.code for finding in found] == ["competing_drafts"]
+    assert "superseded" in found[0].detail
+
+
+def test_a_superseded_draft_leaves_no_competition() -> None:
+    docs = (
+        _doc(stem="edge-plan--claude", title="Edge plan (Claude)", body=SHARED_BODY),
+        _doc(stem="edge-plan--codex", title="Edge plan (Codex)", body=DIVERGENT_BODY),
+    )
+    links = (
+        Link(
+            src_id=f"{PROJECT_SLUG}:edge-plan--claude",
+            dst_id=f"{PROJECT_SLUG}:edge-plan--codex",
+            link_type=LinkType.SUPERSEDES,
+        ),
+    )
+    assert duplicate_findings(docs=docs, links=links) == ()
+
+
+def test_a_supersession_does_not_excuse_a_third_live_draft() -> None:
+    docs = (
+        _doc(stem="edge-plan--claude", title="Edge plan (Claude)", body=SHARED_BODY),
+        _doc(stem="edge-plan--codex", title="Edge plan (Codex)", body=DIVERGENT_BODY),
+        _doc(stem="edge-plan--gemini", title="Edge plan (Gemini)", body=DIVERGENT_BODY),
+    )
+    links = (
+        Link(
+            src_id=f"{PROJECT_SLUG}:edge-plan--claude",
+            dst_id=f"{PROJECT_SLUG}:edge-plan--codex",
+            link_type=LinkType.SUPERSEDES,
+        ),
+    )
+    found = duplicate_findings(docs=docs, links=links)
+    assert [finding.code for finding in found] == ["competing_drafts"]
+    assert found[0].doc_ids == (
+        f"{PROJECT_SLUG}:edge-plan--claude",
+        f"{PROJECT_SLUG}:edge-plan--gemini",
+    )
+
+
 def test_overlap_of_identical_bodies_is_total() -> None:
     from spine.health.findings import body_overlap
 

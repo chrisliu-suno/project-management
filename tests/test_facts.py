@@ -112,6 +112,27 @@ def test_an_unrelated_pull_request_is_filtered_out() -> None:
     assert is_relevant(entry=entry, project=_project()) is False
 
 
+def test_a_conventional_commit_type_is_not_a_project_term() -> None:
+    engine = Project(
+        slug="access-engine",
+        name="Access Engine Refactor",
+        docs_dir=Path("/tmp/access-engine"),
+    )
+    entry = {"headRefName": "someone/else", "title": "refactor: run hydration without a prefilter"}
+    assert is_relevant(entry=entry, project=engine) is False
+
+
+def test_declared_title_terms_replace_the_terms_taken_from_the_name() -> None:
+    rbac = Project(
+        slug="rbac",
+        name="RBAC Access Plane",
+        docs_dir=Path("/tmp/rbac"),
+        title_terms=("rbac",),
+    )
+    assert is_relevant(entry={"title": "check workspace access at submit"}, project=rbac) is False
+    assert is_relevant(entry={"title": "rbac role assignment"}, project=rbac) is True
+
+
 def test_facts_round_trip_through_the_store() -> None:
     store = FactStore()
     assert store.record(facts=(_pr(number=1), _pr(number=2))) == 2

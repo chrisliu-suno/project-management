@@ -186,33 +186,65 @@ def _is_redundant(*, cluster: list[Doc]) -> bool:
     )
 
 
-def duplicate_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
-    """Documents competing to answer the same question, and documents merely sharing a title."""
-    ordered = sorted(_addressable(docs=docs), key=lambda doc: doc.doc_id)
-    found: list[Finding] = []
-    for cluster in _title_clusters(docs=ordered):
-        doc_ids = tuple(sorted(doc.doc_id for doc in cluster))
-        if _is_redundant(cluster=cluster):
-            found.append(
-                Finding(
-                    code="duplicate_titles",
-                    severity=Severity.WARN,
-                    headline=f"{len(cluster)} near-duplicate documents",
-                    detail="One question should have one document; merge or delete the rest.",
-                    doc_ids=doc_ids,
-                )
-            )
-            continue
-        found.append(
-            Finding(
-                code="same_title",
-                severity=Severity.WARN,
-                headline=f"{len(cluster)} documents share a title but not their content",
-                detail="Retitle them; findings and citations cannot tell these apart.",
-                doc_ids=doc_ids,
-            )
+def check_is_agent_draft_cluster(*, cluster: list[Doc]) -> bool:
+    """Whether these documents are one document's competing agent drafts."""
+    return len({_base_name(doc=doc) for doc in cluster}) == 1 and all(
+        AGENT_SUFFIX_SEPARATOR in doc.path.stem for doc in cluster
+    )
+
+
+def _superseded_doc_ids(*, links: tuple[Link, ...]) -> frozenset[str]:
+    return frozenset(link.dst_id for link in links if link.link_type is LinkType.SUPERSEDES)
+
+
+def _cluster_finding(*, cluster: list[Doc]) -> Finding:
+    """The one finding a cluster of still-live documents earns."""
+    doc_ids = tuple(sorted(doc.doc_id for doc in cluster))
+    if _is_redundant(cluster=cluster):
+        return Finding(
+            code="duplicate_titles",
+            severity=Severity.WARN,
+            headline=f"{len(cluster)} near-duplicate documents",
+            detail="One question should have one document; merge or delete the rest.",
+            doc_ids=doc_ids,
         )
-    return tuple(found)
+    if check_is_agent_draft_cluster(cluster=cluster):
+        return Finding(
+            code="competing_drafts",
+            severity=Severity.WARN,
+            headline=f"{len(cluster)} agent drafts of one document are both still live",
+            detail=(
+                "Record which one won and say the others are superseded by it; "
+                "retitling cannot separate drafts that share a file name."
+            ),
+            doc_ids=doc_ids,
+        )
+    return Finding(
+        code="same_title",
+        severity=Severity.WARN,
+        headline=f"{len(cluster)} documents share a title but not their content",
+        detail="Retitle them; findings and citations cannot tell these apart.",
+        doc_ids=doc_ids,
+    )
+
+
+def duplicate_findings(
+    *, docs: tuple[Doc, ...], links: tuple[Link, ...] = ()
+) -> tuple[Finding, ...]:
+    """Documents competing to answer the same question, and documents merely sharing a title.
+
+    A recorded supersession answers the competition, so a superseded document no
+    longer counts towards its cluster.
+    """
+    ordered = sorted(_addressable(docs=docs), key=lambda doc: doc.doc_id)
+    superseded = _superseded_doc_ids(links=links)
+    live_clusters = (
+        [doc for doc in cluster if doc.doc_id not in superseded]
+        for cluster in _title_clusters(docs=ordered)
+    )
+    return tuple(
+        _cluster_finding(cluster=cluster) for cluster in live_clusters if len(cluster) > 1
+    )
 
 
 def unclassified_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
@@ -274,7 +306,7 @@ def all_findings(*, docs: tuple[Doc, ...], links: tuple[Link, ...]) -> tuple[Fin
         *every_time_findings(docs=docs),
         *unclassified_findings(docs=docs),
         *unrecognised_frontmatter_findings(docs=docs),
-        *duplicate_findings(docs=docs),
+        *duplicate_findings(docs=docs, links=links),
         *orphan_findings(docs=docs, links=links),
         *cap_breach_findings(docs=docs),
         *onboarding_findings(docs=docs, links=links),

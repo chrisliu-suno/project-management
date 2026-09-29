@@ -47,6 +47,7 @@ def _relay_project(*, root: Path) -> Project:
         repos=(RELAY_REPO,),
         path_globs=(f"{root}/relay*",),
         branch_prefixes=(RELAY_BRANCH_PREFIX,),
+        title_terms=("relay",),
         linear_project="REL",
     )
 
