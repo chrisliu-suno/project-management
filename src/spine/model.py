@@ -8,6 +8,14 @@ from enum import StrEnum
 from pathlib import Path
 
 
+class KindSource(StrEnum):
+    """Where a document's kind came from, which decides whether it still needs one."""
+
+    DECLARED = "declared"
+    INFERRED = "inferred"
+    MODEL = "model"
+
+
 class ReadWhen(StrEnum):
     """When an agent needs a document. The axis the corpus is split on."""
 
@@ -111,6 +119,7 @@ class Doc:
     frontmatter: dict[str, object] = field(default_factory=dict)
     is_generated: bool = False
     parent_doc_id: str | None = None
+    kind_source: KindSource = KindSource.INFERRED
 
     @property
     def line_count(self) -> int:

@@ -268,3 +268,84 @@ def test_a_kind_inside_the_vocabulary_is_left_alone() -> None:
     declared = _doc(stem="declared", kind=DocKind.PROJECT_RULES, frontmatter={"kind": "project_rules"})
 
     assert needs_classification(doc=declared) is False
+
+
+def test_a_model_verdict_of_generated_is_not_an_unclassified_document() -> None:
+    """The sentinel and a real `generated` verdict were the same two values."""
+    from spine.classify.apply import apply_cached_classifications
+    from spine.classify.cache import ClassificationCache
+    from spine.health.findings import unclassified_findings
+    from spine.model import KindSource, ReadWhen
+
+    cache = ClassificationCache()
+    derived = _doc(stem="open-pr-map", body="# Open PR map\n\nA generated table.\n")
+    cache.put(
+        body=derived.body,
+        classification=Classification(
+            doc_id=derived.doc_id,
+            kind=DocKind.GENERATED,
+            read_when=ReadWhen.LOOKED_UP,
+            area=None,
+            confidence=0.7,
+        ),
+    )
+
+    applied = apply_cached_classifications(docs=(derived,), cache=cache)
+
+    assert applied[0].kind_source is KindSource.MODEL
+    assert unclassified_findings(docs=applied) == ()
+
+
+def test_a_document_nobody_has_classified_is_still_reported() -> None:
+    from spine.health.findings import unclassified_findings
+    from spine.model import ReadWhen
+
+    never_seen = _doc(stem="mystery", kind=DocKind.GENERATED)
+    assert never_seen.read_when is ReadWhen.LOOKED_UP
+
+    findings = unclassified_findings(docs=(never_seen,))
+
+    assert len(findings) == 1
+    assert findings[0].doc_ids == (never_seen.doc_id,)
+
+
+def test_a_verdict_under_the_confidence_floor_does_not_count_as_a_kind() -> None:
+    from spine.classify import check_is_confident
+    from spine.constants import CLASSIFIER_MIN_CONFIDENCE
+    from spine.model import ReadWhen
+
+    unsure = Classification(
+        doc_id="a:unsure",
+        kind=DocKind.GENERATED,
+        read_when=ReadWhen.LOOKED_UP,
+        area=None,
+        confidence=CLASSIFIER_MIN_CONFIDENCE - 0.01,
+    )
+
+    assert check_is_confident(verdict=unsure) is False
+
+
+def test_a_document_the_model_never_answered_for_is_counted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A silent omission used to read exactly like a corpus with nothing to do."""
+    from spine.classify import classify_unknown_docs
+    from spine.model import Project
+
+    class SilentClassifier:
+        """Answers no batch, the way a dropped result set behaves."""
+
+        def classify_batch(self, *, docs):
+            return ()
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "random-thoughts.md").write_text("# Random thoughts\n\nProse.\n", encoding="utf-8")
+    monkeypatch.setattr("spine.classify.AnthropicClassifier", SilentClassifier)
+
+    run = classify_unknown_docs(
+        project=Project(slug=PROJECT_SLUG, name=PROJECT_SLUG, docs_dir=corpus)
+    )
+
+    assert run.classified == 0
+    assert run.unanswered == 1

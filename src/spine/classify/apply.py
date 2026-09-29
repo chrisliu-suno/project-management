@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..model import Doc
+from ..model import Doc, KindSource
 from .cache import ClassificationCache
 
 
@@ -19,6 +19,8 @@ def apply_cached_classifications(
     from . import needs_classification
 
     from .reconcile import reconcile
+
+    from . import check_is_confident
 
     active_cache = cache if cache is not None else ClassificationCache()
     cached = {
@@ -34,6 +36,9 @@ def apply_cached_classifications(
             kind=reconciled[doc.doc_id].kind,
             read_when=reconciled[doc.doc_id].read_when,
             area=reconciled[doc.doc_id].area or doc.area,
+            kind_source=KindSource.MODEL
+            if check_is_confident(verdict=reconciled[doc.doc_id])
+            else doc.kind_source,
         )
         if doc.doc_id in reconciled
         else doc
