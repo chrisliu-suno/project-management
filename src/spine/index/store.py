@@ -7,11 +7,11 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from ..model import Doc, DocKind, Lifecycle, Link, LinkType, ReadWhen
+from ..model import Doc, DocKind, KindSource, Lifecycle, Link, LinkType, ReadWhen
 from ..paths import graph_db_path
 
 SCHEMA_STATEMENTS: tuple[str, ...] = (
-    """
+    f"""
     CREATE TABLE IF NOT EXISTS docs (
         project_slug TEXT NOT NULL,
         doc_id TEXT NOT NULL,
@@ -25,7 +25,8 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         lifecycle TEXT,
         frontmatter TEXT NOT NULL,
         is_generated INTEGER NOT NULL,
-    parent_doc_id TEXT,
+        kind_source TEXT NOT NULL DEFAULT '{KindSource.INFERRED}',
+        parent_doc_id TEXT,
         PRIMARY KEY (project_slug, doc_id)
     )
     """,
@@ -44,7 +45,10 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS links_by_dst ON links (dst_id)",
 )
 
-ADDED_DOC_COLUMNS: tuple[tuple[str, str], ...] = (("brief", "TEXT"),)
+ADDED_DOC_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("brief", "TEXT"),
+    ("kind_source", f"TEXT NOT NULL DEFAULT '{KindSource.INFERRED}'"),
+)
 
 
 def _add_missing_columns(*, connection: sqlite3.Connection) -> None:
@@ -65,10 +69,10 @@ DELETE_PROJECT_LINKS_SQL = "DELETE FROM links WHERE project_slug = :project_slug
 INSERT_DOC_SQL = """
 INSERT INTO docs (
     project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
-    frontmatter, is_generated, parent_doc_id
+    frontmatter, is_generated, kind_source, parent_doc_id
 ) VALUES (
     :project_slug, :doc_id, :path, :kind, :read_when, :title, :body, :area, :brief, :lifecycle,
-    :frontmatter, :is_generated, :parent_doc_id
+    :frontmatter, :is_generated, :kind_source, :parent_doc_id
 )
 """
 
@@ -79,7 +83,7 @@ VALUES (:project_slug, :src_id, :dst_id, :link_type, :confidence, :evidence)
 
 SELECT_PROJECT_DOCS_SQL = """
 SELECT project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
-       frontmatter, is_generated, parent_doc_id
+       frontmatter, is_generated, kind_source, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
 ORDER BY doc_id
@@ -87,7 +91,7 @@ ORDER BY doc_id
 
 SELECT_ORPHAN_DOCS_SQL = """
 SELECT project_slug, doc_id, path, kind, read_when, title, body, area, brief, lifecycle,
-       frontmatter, is_generated, parent_doc_id
+       frontmatter, is_generated, kind_source, parent_doc_id
 FROM docs
 WHERE project_slug = :project_slug
   AND parent_doc_id IS NULL
@@ -130,6 +134,7 @@ def _doc_row(*, doc: Doc, project_slug: str) -> dict[str, object]:
         "lifecycle": str(doc.lifecycle) if doc.lifecycle is not None else None,
         "frontmatter": json.dumps(doc.frontmatter, default=str),
         "is_generated": TRUE_AS_INTEGER if doc.is_generated else FALSE_AS_INTEGER,
+        "kind_source": str(doc.kind_source),
         "parent_doc_id": doc.parent_doc_id,
     }
 
@@ -160,6 +165,7 @@ def _doc_from_row(*, row: sqlite3.Row) -> Doc:
         lifecycle=Lifecycle(lifecycle) if lifecycle else None,
         frontmatter=json.loads(row["frontmatter"]),
         is_generated=bool(row["is_generated"]),
+        kind_source=KindSource(row["kind_source"]),
         parent_doc_id=row["parent_doc_id"],
     )
 

@@ -26,7 +26,7 @@ from ..constants import (
     MARKDOWN_H1_PREFIX,
     PROJECT_SLUG_SEPARATOR,
 )
-from ..model import DEFAULT_READ_WHEN, Doc, DocKind, Lifecycle, Project, ReadWhen
+from ..model import DEFAULT_READ_WHEN, Doc, DocKind, KindSource, Lifecycle, Project, ReadWhen
 from .briefs import (
     get_briefs_from_body,
     get_fallback_brief_from_body,
@@ -66,6 +66,7 @@ class FilesystemDocSource:
             lifecycle=_coerce_enum(raw=parsed.mapping.get(DOC_LIFECYCLE_KEY), enum_type=Lifecycle),
             frontmatter=dict(parsed.mapping),
             is_generated=_resolve_is_generated(mapping=parsed.mapping),
+            kind_source=get_kind_source(mapping=parsed.mapping),
         )
 
 
@@ -123,6 +124,14 @@ def resolve_kind(*, mapping: dict[str, object], path: Path) -> DocKind:
     """Declared kind, else inferred from the filename, else the generated fallback."""
     declared = _coerce_enum(raw=mapping.get(DOC_KIND_KEY), enum_type=DocKind)
     return declared if declared is not None else infer_kind_from_filename(path=path)
+
+
+def get_kind_source(*, mapping: dict[str, object]) -> KindSource:
+    """Whether the document stated a kind the vocabulary knows, or the loader guessed one."""
+    declared = _coerce_enum(raw=mapping.get(DOC_KIND_KEY), enum_type=DocKind)
+    if declared is None:
+        return KindSource.INFERRED
+    return KindSource.DECLARED
 
 
 def infer_kind_from_filename(*, path: Path) -> DocKind:

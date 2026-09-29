@@ -12,7 +12,7 @@ from ..constants import (
 )
 from ..dashboard import Finding, Severity
 from ..docs.limits import find_cap_breaches
-from ..model import Doc, DocKind, Link, LinkType, ReadWhen
+from ..model import Doc, DocKind, KindSource, Link, LinkType, ReadWhen
 from ..vocabulary import get_unrecognised_frontmatter_keys
 from .onboarding import onboarding_findings
 
@@ -220,7 +220,9 @@ def unclassified_findings(*, docs: tuple[Doc, ...]) -> tuple[Finding, ...]:
     unknown = sorted(
         doc.doc_id
         for doc in _addressable(docs=docs)
-        if doc.kind is DocKind.GENERATED and doc.read_when is ReadWhen.LOOKED_UP
+        if doc.kind_source is KindSource.INFERRED
+        and doc.kind is DocKind.GENERATED
+        and doc.read_when is ReadWhen.LOOKED_UP
     )
     if not unknown:
         return ()

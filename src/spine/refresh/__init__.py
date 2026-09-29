@@ -36,16 +36,22 @@ class ProjectRefresh:
     decisions_found: int = 0
     plan_moved: bool = False
     docs_classified: int = 0
+    docs_unanswered: int = 0
     classifier_error: str | None = None
     error: str | None = None
 
     def as_line(self) -> str:
         if self.error is not None:
             return FIELD_SEPARATOR.join((self.slug, "error", self.error))
-        if self.classifier_error is None:
-            classifier_field = f"{self.docs_classified} newly classified"
-        else:
+        if self.classifier_error is not None:
             classifier_field = f"classifier unavailable: {self.classifier_error}"
+        elif self.docs_unanswered:
+            classifier_field = (
+                f"{self.docs_classified} newly classified, "
+                f"{self.docs_unanswered} the model did not answer"
+            )
+        else:
+            classifier_field = f"{self.docs_classified} newly classified"
         return FIELD_SEPARATOR.join(
             (
                 self.slug,
@@ -64,6 +70,7 @@ class ClassifierOutcome:
     """How many documents the sweep gave a kind to, or why it could not."""
 
     docs_classified: int = 0
+    docs_unanswered: int = 0
     error: str | None = None
 
 
@@ -72,9 +79,10 @@ def classify_new_docs(*, project) -> ClassifierOutcome:
     from ..classify import ClassifierRefusedError, ModelUnavailableError, classify_unknown_docs
 
     try:
-        return ClassifierOutcome(docs_classified=classify_unknown_docs(project=project))
+        run = classify_unknown_docs(project=project)
     except (ModelUnavailableError, ClassifierRefusedError) as cause:
         return ClassifierOutcome(error=str(cause))
+    return ClassifierOutcome(docs_classified=run.classified, docs_unanswered=run.unanswered)
 
 
 def refresh_project(*, project) -> ProjectRefresh:
@@ -104,6 +112,7 @@ def refresh_project(*, project) -> ProjectRefresh:
         decisions_found=decisions,
         plan_moved=plan_moved,
         docs_classified=classifier.docs_classified,
+        docs_unanswered=classifier.docs_unanswered,
         classifier_error=classifier.error,
     )
 

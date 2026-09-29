@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ..cli import EXIT_OK, EXIT_USAGE
 from ..constants import CLASSIFIER_BATCH_SIZE, CLASSIFIER_MIN_CONFIDENCE, DOC_KIND_KEY
-from ..model import Doc, DocKind, Project
+from ..model import Doc, DocKind, KindSource, Project
 from ..vocabulary import get_unrecognised_frontmatter_keys
 from .cache import ClassificationCache
 from .client import (
@@ -36,6 +36,8 @@ __all__ = [
     "brief_health",
     "classification_schema",
     "classify_corpus",
+    "ClassifierRun",
+    "check_is_confident",
     "classify_unknown_docs",
     "reconcile",
     "needs_classification",
@@ -46,6 +48,14 @@ __all__ = [
 EXIT_CLASSIFIER_UNAVAILABLE = 3
 FIELD_SEPARATOR = "\t"
 LOW_CONFIDENCE_MARKER = "low-confidence"
+
+
+@dataclass(frozen=True, slots=True)
+class ClassifierRun:
+    """What one classification pass achieved, and what the model left unanswered."""
+
+    classified: int = 0
+    unanswered: int = 0
 
 
 def needs_classification(*, doc: Doc) -> bool:
@@ -66,12 +76,18 @@ def _batches(*, docs: tuple[Doc, ...]) -> tuple[tuple[Doc, ...], ...]:
     )
 
 
+def check_is_confident(*, verdict: Classification) -> bool:
+    """Whether the verdict is sure enough to count as the document's kind."""
+    return verdict.confidence >= CLASSIFIER_MIN_CONFIDENCE
+
+
 def _applied(*, doc: Doc, verdict: Classification) -> Doc:
     return replace(
         doc,
         kind=verdict.kind,
         read_when=verdict.read_when,
         area=verdict.area if verdict.area else doc.area,
+        kind_source=KindSource.MODEL if check_is_confident(verdict=verdict) else doc.kind_source,
     )
 
 
@@ -114,8 +130,8 @@ def classify_corpus(
 
 
 
-def classify_unknown_docs(*, project: Project) -> int:
-    """Give a kind to every document in the project that has none cached, returning how many."""
+def classify_unknown_docs(*, project: Project) -> ClassifierRun:
+    """Give a kind to every document in the project that has none cached."""
     from ..docs import FilesystemDocSource
 
     cache = ClassificationCache()
@@ -123,10 +139,12 @@ def classify_unknown_docs(*, project: Project) -> int:
     pending = tuple(doc for doc in docs if needs_classification(doc=doc))
     _, uncached = _from_cache(docs=pending, cache=cache)
     if not uncached:
-        return 0
+        return ClassifierRun()
     classify_corpus(docs=docs, classifier=AnthropicClassifier(), cache=cache)
     _, still_uncached = _from_cache(docs=uncached, cache=cache)
-    return len(uncached) - len(still_uncached)
+    return ClassifierRun(
+        classified=len(uncached) - len(still_uncached), unanswered=len(still_uncached)
+    )
 
 
 def brief_health(*, docs: tuple[Doc, ...]) -> str | None:
