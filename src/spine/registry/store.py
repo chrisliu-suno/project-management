@@ -9,6 +9,7 @@ from pathlib import Path
 from ..constants import (
     REGISTRY_BARE_KEY_EXTRA_CHARS,
     REGISTRY_KEY_BRANCH_PREFIXES,
+    REGISTRY_KEY_CODE_PATH_GLOBS,
     REGISTRY_KEY_DOCS_DIR,
     REGISTRY_KEY_LINEAR_PROJECT,
     REGISTRY_KEY_NAME,
@@ -99,6 +100,9 @@ def _project_from_table(*, slug: str, table: object) -> Project:
         branch_prefixes=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_BRANCH_PREFIXES),
         ticket_prefixes=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_TICKET_PREFIXES),
         title_terms=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_TITLE_TERMS),
+        code_path_globs=_string_tuple(
+            slug=slug, table=table, key=REGISTRY_KEY_CODE_PATH_GLOBS
+        ),
         linear_project=_optional_string(slug=slug, table=table, key=REGISTRY_KEY_LINEAR_PROJECT),
     )
 
@@ -140,6 +144,10 @@ def _render_project(*, project: Project) -> str:
     ]
     if project.title_terms:
         lines.append(f"{REGISTRY_KEY_TITLE_TERMS} = {_render_array(values=project.title_terms)}")
+    if project.code_path_globs:
+        lines.append(
+            f"{REGISTRY_KEY_CODE_PATH_GLOBS} = {_render_array(values=project.code_path_globs)}"
+        )
     if project.linear_project is not None:
         lines.append(
             f"{REGISTRY_KEY_LINEAR_PROJECT} = {_render_string(value=project.linear_project)}"
