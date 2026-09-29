@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -15,7 +17,7 @@ from spine.facts.drift import (
     referenced_pull_requests,
 )
 from spine.facts.model import Fact, FactKind, PullRequestState
-from spine.facts.observe import is_relevant
+from spine.facts.observe import is_relevant, observe_commits
 from spine.facts.store import FactStore
 from spine.model import Doc, DocKind, Project, ReadWhen
 
@@ -166,6 +168,30 @@ def test_a_branch_prefix_still_wins_over_the_code_paths() -> None:
         "files": [{"path": "docs/notes.md"}],
     }
     assert is_relevant(entry=entry, project=engine) is True
+
+
+def test_a_project_with_no_declared_paths_observes_no_commits(tmp_path: Path) -> None:
+    project = Project(slug=PROJECT_SLUG, name="Alpha", docs_dir=tmp_path)
+    assert observe_commits(project=project, repo_dir=tmp_path, branch="HEAD") == ()
+
+
+def test_commits_are_limited_to_the_declared_paths(tmp_path: Path) -> None:
+    run = partial(subprocess.run, cwd=tmp_path, check=True, capture_output=True)
+    run(["git", "init", "--quiet"])
+    run(["git", "config", "user.email", "spine@example.com"])
+    run(["git", "config", "user.name", "Spine"])
+    (tmp_path / "mine.py").write_text("in scope\n", encoding="utf-8")
+    run(["git", "add", "mine.py"])
+    run(["git", "commit", "--quiet", "-m", "touch the declared path"])
+    (tmp_path / "theirs.py").write_text("out of scope\n", encoding="utf-8")
+    run(["git", "add", "theirs.py"])
+    run(["git", "commit", "--quiet", "-m", "touch another path"])
+
+    project = Project(
+        slug=PROJECT_SLUG, name="Alpha", docs_dir=tmp_path, code_path_globs=("mine.py",)
+    )
+    facts = observe_commits(project=project, repo_dir=tmp_path, branch="HEAD")
+    assert [fact.title for fact in facts] == ["touch the declared path"]
 
 
 def test_declared_title_terms_replace_the_terms_taken_from_the_name() -> None:
