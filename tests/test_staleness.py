@@ -59,6 +59,31 @@ def test_a_superseded_decision_nobody_cites_is_not_flagged() -> None:
     assert unswept_supersessions(docs=docs, links=(_supersedes(),)) == ()
 
 
+def test_a_citer_that_also_cites_the_replacement_is_swept() -> None:
+    docs = (
+        _doc(doc_id=SUPERSEDED_ID, stem="decisions", parent=f"{PROJECT_SLUG}:decisions"),
+        _doc(doc_id=REPLACEMENT_ID, stem="decisions", parent=f"{PROJECT_SLUG}:decisions"),
+        _doc(doc_id=CITER_ID, stem="design"),
+    )
+    cites_replacement = Link(
+        src_id=CITER_ID, dst_id=REPLACEMENT_ID, link_type=LinkType.MENTIONS
+    )
+    links = (_supersedes(), _citation(), cites_replacement)
+    assert unswept_supersessions(docs=docs, links=links) == ()
+
+
+def test_citing_a_different_document_does_not_count_as_sweeping() -> None:
+    other_id = f"{PROJECT_SLUG}:unrelated"
+    docs = (
+        _doc(doc_id=SUPERSEDED_ID, stem="decisions", parent=f"{PROJECT_SLUG}:decisions"),
+        _doc(doc_id=CITER_ID, stem="design"),
+        _doc(doc_id=other_id, stem="unrelated"),
+    )
+    cites_other = Link(src_id=CITER_ID, dst_id=other_id, link_type=LinkType.MENTIONS)
+    links = (_supersedes(), _citation(), cites_other)
+    assert unswept_supersessions(docs=docs, links=links)[0].doc_ids == (CITER_ID,)
+
+
 def test_no_supersessions_flag_nothing() -> None:
     assert unswept_supersessions(docs=(_doc(doc_id=CITER_ID, stem="design"),), links=()) == ()
 
