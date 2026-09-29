@@ -27,6 +27,7 @@ HEAD_REF_FIELD = "headRefName"
 MERGED_AT_FIELD = "mergedAt"
 FILES_FIELD = "files"
 FILE_PATH_KEY = "path"
+PATHSPEC_SEPARATOR = "--"
 
 
 def _run(*, command: tuple[str, ...], cwd: Path | None = None) -> str | None:
@@ -60,7 +61,13 @@ def _commit_fact(*, line: str, project_slug: str) -> Fact | None:
 
 
 def observe_commits(*, project: Project, repo_dir: Path, branch: str) -> tuple[Fact, ...]:
-    """Recent commits on a branch, or nothing when the directory is not a repository."""
+    """Recent commits touching the project's declared paths.
+
+    A project that declares none gets nothing: every commit on the branch is the
+    wrong answer in a repository that holds several projects.
+    """
+    if not project.code_path_globs:
+        return ()
     output = _run(
         command=(
             "git",
@@ -68,6 +75,8 @@ def observe_commits(*, project: Project, repo_dir: Path, branch: str) -> tuple[F
             branch,
             f"--pretty=format:{GIT_LOG_FORMAT}",
             f"--max-count={FACTS_COMMIT_LIMIT}",
+            PATHSPEC_SEPARATOR,
+            *project.code_path_globs,
         ),
         cwd=repo_dir,
     )
