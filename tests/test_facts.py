@@ -122,6 +122,52 @@ def test_a_conventional_commit_type_is_not_a_project_term() -> None:
     assert is_relevant(entry=entry, project=engine) is False
 
 
+def _engine_with_code_paths() -> Project:
+    return Project(
+        slug="access-engine",
+        name="Access Engine Refactor",
+        docs_dir=Path("/tmp/access-engine"),
+        code_path_globs=("studio_api/studio_api/access/*",),
+    )
+
+
+def test_a_declared_code_path_decides_relevance_without_the_title() -> None:
+    entry = {
+        "title": "chore: unrelated words",
+        "files": [{"path": "studio_api/studio_api/access/entities/clip/rules.py"}],
+    }
+    assert is_relevant(entry=entry, project=_engine_with_code_paths()) is True
+
+
+def test_a_matching_title_cannot_rescue_a_pull_request_outside_the_code_paths() -> None:
+    entry = {
+        "title": "refactor: rework the access engine",
+        "files": [{"path": "studio_api/studio_api/unified_feed/offline/metrics.py"}],
+    }
+    assert is_relevant(entry=entry, project=_engine_with_code_paths()) is False
+
+
+def test_a_pull_request_with_no_file_list_is_not_claimed_by_a_code_path() -> None:
+    entry = {"title": "refactor: rework the access engine"}
+    assert is_relevant(entry=entry, project=_engine_with_code_paths()) is False
+
+
+def test_a_branch_prefix_still_wins_over_the_code_paths() -> None:
+    engine = Project(
+        slug="access-engine",
+        name="Access Engine Refactor",
+        docs_dir=Path("/tmp/access-engine"),
+        branch_prefixes=("chris/refactor/access",),
+        code_path_globs=("studio_api/studio_api/access/*",),
+    )
+    entry = {
+        "headRefName": "chris/refactor/access-loading",
+        "title": "unrelated",
+        "files": [{"path": "docs/notes.md"}],
+    }
+    assert is_relevant(entry=entry, project=engine) is True
+
+
 def test_declared_title_terms_replace_the_terms_taken_from_the_name() -> None:
     rbac = Project(
         slug="rbac",

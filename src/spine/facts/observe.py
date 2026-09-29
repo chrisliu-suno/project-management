@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from fnmatch import fnmatch
 from pathlib import Path
 
 from ..constants import (
@@ -21,9 +22,11 @@ from ..model import Project
 from .model import Fact, FactKind, PullRequestState
 
 COMMIT_FIELD_COUNT = 4
-PR_JSON_FIELDS = "number,title,author,state,createdAt,mergedAt,url,headRefName"
+PR_JSON_FIELDS = "number,title,author,state,createdAt,mergedAt,url,headRefName,files"
 HEAD_REF_FIELD = "headRefName"
 MERGED_AT_FIELD = "mergedAt"
+FILES_FIELD = "files"
+FILE_PATH_KEY = "path"
 
 
 def _run(*, command: tuple[str, ...], cwd: Path | None = None) -> str | None:
@@ -123,15 +126,38 @@ def get_title_terms_from_project(*, project: Project) -> frozenset[str]:
     return get_significant_terms_from_text(text=f"{project.slug} {project.name}")
 
 
+def get_changed_paths_from_entry(*, entry: dict) -> tuple[str, ...]:
+    """The repository-relative paths a pull request changed."""
+    listed = entry.get(FILES_FIELD)
+    if not isinstance(listed, list):
+        return ()
+    return tuple(
+        str(changed[FILE_PATH_KEY])
+        for changed in listed
+        if isinstance(changed, dict) and FILE_PATH_KEY in changed
+    )
+
+
+def check_touches_code_paths(*, entry: dict, globs: tuple[str, ...]) -> bool:
+    """Whether the pull request changed a file the project claims as its own."""
+    return any(
+        fnmatch(path, glob) for path in get_changed_paths_from_entry(entry=entry) for glob in globs
+    )
+
+
 def is_relevant(*, entry: dict, project: Project) -> bool:
     """Whether a pull request plausibly belongs to this project.
 
     One repository holds several projects, so every merged pull request would
-    otherwise read as undocumented work on all of them.
+    otherwise read as undocumented work on all of them. A project that declares its
+    code paths is judged on those alone: which files a change touched is direct
+    evidence where a shared title word is a guess.
     """
     head = str(entry.get(HEAD_REF_FIELD, ""))
     if any(head.startswith(prefix) for prefix in project.branch_prefixes):
         return True
+    if project.code_path_globs:
+        return check_touches_code_paths(entry=entry, globs=project.code_path_globs)
     title_terms = get_significant_terms_from_text(text=str(entry.get("title", "")))
     return bool(title_terms & get_title_terms_from_project(project=project))
 
