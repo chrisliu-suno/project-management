@@ -57,6 +57,7 @@ REGISTRY_KEY_PATH_GLOBS = "path_globs"
 REGISTRY_KEY_BRANCH_PREFIXES = "branch_prefixes"
 REGISTRY_KEY_LINEAR_PROJECT = "linear_project"
 REGISTRY_KEY_TICKET_PREFIXES = "ticket_prefixes"
+REGISTRY_KEY_TITLE_TERMS = "title_terms"
 REGISTRY_BARE_KEY_EXTRA_CHARS = "-_"
 
 REPO_MATCH_CONFIDENCE = 0.6
@@ -261,6 +262,20 @@ GIT_LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%s"
 GIT_FIELD_SEPARATOR = "\x1f"
 GITHUB_CLI_PATH = "/opt/homebrew/bin/gh"
 FACTS_MIN_TITLE_TERM_LENGTH = 4
+CONVENTIONAL_COMMIT_TYPES: frozenset[str] = frozenset(
+    {
+        "build",
+        "chore",
+        "docs",
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "revert",
+        "style",
+        "test",
+    }
+)
 SUBPROCESS_TIMEOUT_SECONDS = 20
 
 SESSIONS_DB_FILE_NAME = "live_sessions.sqlite3"

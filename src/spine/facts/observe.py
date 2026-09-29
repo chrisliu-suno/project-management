@@ -8,8 +8,9 @@ import subprocess
 from pathlib import Path
 
 from ..constants import (
-    FACTS_MIN_TITLE_TERM_LENGTH,
+    CONVENTIONAL_COMMIT_TYPES,
     FACTS_COMMIT_LIMIT,
+    FACTS_MIN_TITLE_TERM_LENGTH,
     FACTS_PR_LIMIT,
     GIT_FIELD_SEPARATOR,
     GIT_LOG_FORMAT,
@@ -101,9 +102,25 @@ def _pr_fact(*, entry: dict, project_slug: str) -> Fact | None:
     )
 
 
-def _project_terms(*, project: Project) -> frozenset[str]:
-    words = re.findall(r"[a-z0-9]+", f"{project.slug} {project.name}".lower())
-    return frozenset(word for word in words if len(word) >= FACTS_MIN_TITLE_TERM_LENGTH)
+def get_significant_terms_from_text(*, text: str) -> frozenset[str]:
+    """The words in a title specific enough to name a project.
+
+    A conventional-commit type appears in nearly every title, so leaving `refactor`
+    in makes every refactor read as work on the Access Engine Refactor.
+    """
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return frozenset(
+        word
+        for word in words
+        if len(word) >= FACTS_MIN_TITLE_TERM_LENGTH and word not in CONVENTIONAL_COMMIT_TYPES
+    )
+
+
+def get_title_terms_from_project(*, project: Project) -> frozenset[str]:
+    """The words a pull-request title must share with the project to count as its work."""
+    if project.title_terms:
+        return frozenset(term.lower() for term in project.title_terms)
+    return get_significant_terms_from_text(text=f"{project.slug} {project.name}")
 
 
 def is_relevant(*, entry: dict, project: Project) -> bool:
@@ -115,8 +132,8 @@ def is_relevant(*, entry: dict, project: Project) -> bool:
     head = str(entry.get(HEAD_REF_FIELD, ""))
     if any(head.startswith(prefix) for prefix in project.branch_prefixes):
         return True
-    title_words = set(re.findall(r"[a-z0-9]+", str(entry.get("title", "")).lower()))
-    return bool(title_words & _project_terms(project=project))
+    title_terms = get_significant_terms_from_text(text=str(entry.get("title", "")))
+    return bool(title_terms & get_title_terms_from_project(project=project))
 
 
 def observe_pull_requests(*, project: Project) -> tuple[Fact, ...]:
