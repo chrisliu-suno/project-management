@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
+from collections.abc import Iterator
 from functools import partial
 from pathlib import Path
 
 import pytest
 
-from spine.constants import SPINE_HOME_ENV_VAR
+from spine.constants import FACTS_AUTHOR_PR_LIMIT, SPINE_HOME_ENV_VAR
 from spine.dashboard import Severity
+from spine.facts import observe as observe_module
 from spine.facts.drift import (
     documented_but_unmerged,
     drift_findings,
@@ -17,7 +20,7 @@ from spine.facts.drift import (
     referenced_pull_requests,
 )
 from spine.facts.model import Fact, FactKind, PullRequestState
-from spine.facts.observe import is_relevant, observe_commits
+from spine.facts.observe import is_relevant, observe_commits, observe_pull_requests
 from spine.facts.store import FactStore
 from spine.model import Doc, DocKind, Project, ReadWhen
 
@@ -192,6 +195,102 @@ def test_commits_are_limited_to_the_declared_paths(tmp_path: Path) -> None:
     )
     facts = observe_commits(project=project, repo_dir=tmp_path, branch="HEAD")
     assert [fact.title for fact in facts] == ["touch the declared path"]
+
+
+@pytest.fixture(autouse=True)
+def forget_cached_queries() -> Iterator[None]:
+    """Stop one test's fake pull-request list from answering the next one's query."""
+    observe_module._cached_pull_requests.cache_clear()
+    yield
+    observe_module._cached_pull_requests.cache_clear()
+
+
+def _record_queries(
+    *, monkeypatch: pytest.MonkeyPatch, by_author: dict[str, list[dict]]
+) -> list[tuple[str, ...]]:
+    issued: list[tuple[str, ...]] = []
+
+    def fake_run(*, command: tuple[str, ...], cwd: Path | None = None) -> str:
+        issued.append(command)
+        author = command[command.index("--author") + 1] if "--author" in command else None
+        return json.dumps(by_author.get(author, []))
+
+    monkeypatch.setattr(observe_module, "_run", fake_run)
+    return issued
+
+
+def _with_authors(*, authors: tuple[str, ...]) -> Project:
+    return Project(
+        slug=PROJECT_SLUG,
+        name="Alpha",
+        docs_dir=Path("/tmp/alpha"),
+        repos=("owner/repo",),
+        authors=authors,
+        code_path_globs=("src/*",),
+    )
+
+
+def _entry(*, number: int) -> dict:
+    return {
+        "number": number,
+        "title": f"change {number}",
+        "author": {"login": "someone"},
+        "state": "MERGED",
+        "mergedAt": "2026-09-01T00:00:00Z",
+        "files": [{"path": "src/thing.py"}],
+    }
+
+
+def test_each_declared_author_gets_their_own_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    issued = _record_queries(
+        monkeypatch=monkeypatch,
+        by_author={"ada": [_entry(number=1)], "grace": [_entry(number=2)]},
+    )
+    facts = observe_pull_requests(project=_with_authors(authors=("ada", "grace")))
+    assert sorted(fact.reference for fact in facts) == ["#1", "#2"]
+    assert [command[command.index("--author") + 1] for command in issued] == ["ada", "grace"]
+    assert all(str(FACTS_AUTHOR_PR_LIMIT) in command for command in issued)
+
+
+def test_a_pull_request_returned_for_two_authors_is_recorded_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shared = _entry(number=7)
+    _record_queries(monkeypatch=monkeypatch, by_author={"ada": [shared], "grace": [shared]})
+    facts = observe_pull_requests(project=_with_authors(authors=("ada", "grace")))
+    assert [fact.reference for fact in facts] == ["#7"]
+
+
+def test_two_projects_on_one_repository_share_a_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    issued = _record_queries(monkeypatch=monkeypatch, by_author={"ada": [_entry(number=3)]})
+    first = _with_authors(authors=("ada",))
+    second = Project(
+        slug="beta",
+        name="Beta",
+        docs_dir=Path("/tmp/beta"),
+        repos=("owner/repo",),
+        authors=("ada",),
+        code_path_globs=("src/*",),
+    )
+    observe_pull_requests(project=first)
+    observe_pull_requests(project=second)
+    assert len(issued) == 1
+
+
+def test_a_project_with_no_declared_authors_asks_once_without_a_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issued = _record_queries(monkeypatch=monkeypatch, by_author={None: [_entry(number=4)]})
+    project = Project(
+        slug=PROJECT_SLUG,
+        name="Alpha",
+        docs_dir=Path("/tmp/alpha"),
+        repos=("owner/repo",),
+        code_path_globs=("src/*",),
+    )
+    assert [fact.reference for fact in observe_pull_requests(project=project)] == ["#4"]
+    assert len(issued) == 1
+    assert "--author" not in issued[0]
 
 
 def test_declared_title_terms_replace_the_terms_taken_from_the_name() -> None:

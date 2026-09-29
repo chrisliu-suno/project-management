@@ -49,6 +49,7 @@ def _relay_project(*, root: Path) -> Project:
         branch_prefixes=(RELAY_BRANCH_PREFIX,),
         title_terms=("relay",),
         code_path_globs=("services/relay/*",),
+        authors=("ada", "grace"),
         linear_project="REL",
     )
 

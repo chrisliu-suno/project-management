@@ -6,10 +6,13 @@ import json
 import re
 import subprocess
 from fnmatch import fnmatch
+from functools import lru_cache
 from pathlib import Path
 
 from ..constants import (
+    CACHED_PULL_REQUEST_QUERIES,
     CONVENTIONAL_COMMIT_TYPES,
+    FACTS_AUTHOR_PR_LIMIT,
     FACTS_COMMIT_LIMIT,
     FACTS_MIN_TITLE_TERM_LENGTH,
     FACTS_PR_LIMIT,
@@ -171,34 +174,72 @@ def is_relevant(*, entry: dict, project: Project) -> bool:
     return bool(title_terms & get_title_terms_from_project(project=project))
 
 
+def _listed_pull_requests(*, command: tuple[str, ...]) -> tuple[dict, ...]:
+    output = _run(command=command)
+    if output is None:
+        return ()
+    try:
+        listed = json.loads(output)
+    except json.JSONDecodeError:
+        return ()
+    return tuple(entry for entry in listed if isinstance(entry, dict))
+
+
+def _list_command(*, repo: str, limit: int, author: str | None) -> tuple[str, ...]:
+    author_arguments = ("--author", author) if author is not None else ()
+    return (
+        GITHUB_CLI_PATH,
+        "pr",
+        "list",
+        "--repo",
+        repo,
+        "--state",
+        "all",
+        "--limit",
+        str(limit),
+        *author_arguments,
+        "--json",
+        PR_JSON_FIELDS,
+    )
+
+
+@lru_cache(maxsize=CACHED_PULL_REQUEST_QUERIES)
+def _cached_pull_requests(*, repo: str, limit: int, author: str | None) -> tuple[dict, ...]:
+    """One repository query, shared by every project that asks for it in this process.
+
+    Several projects read the same repository on one sweep, and the query is the slow
+    part. The cache lives for the process, so a sweep never asks twice and the next
+    sweep starts empty.
+    """
+    return _listed_pull_requests(command=_list_command(repo=repo, limit=limit, author=author))
+
+
+def get_entries_for_project(*, project: Project) -> tuple[dict, ...]:
+    """Every pull request worth considering for this project, newest query first.
+
+    Asking per author reaches weeks back for the handful of people whose work these
+    documents track; the unfiltered query returns whatever was opened most recently,
+    which in a busy repository is almost entirely still open.
+    """
+    repo = project.repos[0]
+    if not project.authors:
+        return _cached_pull_requests(repo=repo, limit=FACTS_PR_LIMIT, author=None)
+    by_number: dict[object, dict] = {}
+    for author in project.authors:
+        for entry in _cached_pull_requests(
+            repo=repo, limit=FACTS_AUTHOR_PR_LIMIT, author=author
+        ):
+            by_number.setdefault(entry.get("number"), entry)
+    return tuple(by_number.values())
+
+
 def observe_pull_requests(*, project: Project) -> tuple[Fact, ...]:
     """Recent pull requests for the project's first repository."""
     if not project.repos:
         return ()
-    output = _run(
-        command=(
-            GITHUB_CLI_PATH,
-            "pr",
-            "list",
-            "--repo",
-            project.repos[0],
-            "--state",
-            "all",
-            "--limit",
-            str(FACTS_PR_LIMIT),
-            "--json",
-            PR_JSON_FIELDS,
-        )
-    )
-    if output is None:
-        return ()
-    try:
-        entries = json.loads(output)
-    except json.JSONDecodeError:
-        return ()
     found = (
         _pr_fact(entry=entry, project_slug=project.slug)
-        for entry in entries
+        for entry in get_entries_for_project(project=project)
         if is_relevant(entry=entry, project=project)
     )
     return tuple(fact for fact in found if fact is not None)

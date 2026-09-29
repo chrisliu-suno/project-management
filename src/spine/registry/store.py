@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..constants import (
     REGISTRY_BARE_KEY_EXTRA_CHARS,
+    REGISTRY_KEY_AUTHORS,
     REGISTRY_KEY_BRANCH_PREFIXES,
     REGISTRY_KEY_CODE_PATH_GLOBS,
     REGISTRY_KEY_DOCS_DIR,
@@ -103,6 +104,7 @@ def _project_from_table(*, slug: str, table: object) -> Project:
         code_path_globs=_string_tuple(
             slug=slug, table=table, key=REGISTRY_KEY_CODE_PATH_GLOBS
         ),
+        authors=_string_tuple(slug=slug, table=table, key=REGISTRY_KEY_AUTHORS),
         linear_project=_optional_string(slug=slug, table=table, key=REGISTRY_KEY_LINEAR_PROJECT),
     )
 
@@ -148,6 +150,8 @@ def _render_project(*, project: Project) -> str:
         lines.append(
             f"{REGISTRY_KEY_CODE_PATH_GLOBS} = {_render_array(values=project.code_path_globs)}"
         )
+    if project.authors:
+        lines.append(f"{REGISTRY_KEY_AUTHORS} = {_render_array(values=project.authors)}")
     if project.linear_project is not None:
         lines.append(
             f"{REGISTRY_KEY_LINEAR_PROJECT} = {_render_string(value=project.linear_project)}"

@@ -91,6 +91,7 @@ class Project:
     ticket_prefixes: tuple[str, ...] = ()
     title_terms: tuple[str, ...] = ()
     code_path_globs: tuple[str, ...] = ()
+    authors: tuple[str, ...] = ()
     linear_project: str | None = None
 
 
