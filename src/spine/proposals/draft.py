@@ -5,15 +5,16 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..constants import PROPOSAL_APPEND_HEADING
+from ..constants import PROPOSAL_APPEND_HEADING, SHIPPED_LOG_FILE_NAME, SHIPPED_LOG_STEM
 from ..facts.model import Fact, FactKind, PullRequestState
 from ..live.store import now_iso
-from ..model import Doc, DocKind, Project
+from ..model import Doc, DocKind, Project, ReadWhen
 from .model import Proposal, ProposalKind, ProposalState
 
 CONTENT_ENCODING = "utf-8"
 ID_DIGEST_LENGTH = 12
-DRAFT_TARGET_KINDS = (DocKind.BRIEF, DocKind.DECISION_LOG, DocKind.MILESTONE)
+BRIEF_KIND_LINE = f"kind: {DocKind.BRIEF}"
+FRONTMATTER_FENCE = "---"
 LINE_SEPARATOR = "\n"
 MARKDOWN_HEADING_PREFIX = "#"
 
@@ -24,13 +25,25 @@ def proposal_id_for(*, doc_id: str, body: str) -> str:
     return f"{doc_id}:{digest[:ID_DIGEST_LENGTH]}"
 
 
-def _target_doc(*, docs: tuple[Doc, ...]) -> Doc | None:
-    addressable = [doc for doc in docs if not doc.is_entry]
-    for kind in DRAFT_TARGET_KINDS:
-        for doc in addressable:
-            if doc.kind is kind:
-                return doc
-    return None
+def _shipped_log_id(*, project: Project) -> str:
+    return f"{project.slug}:{SHIPPED_LOG_STEM}"
+
+
+def _shipped_log_text(*, project: Project) -> str:
+    """A new shipped log: looked up, never loaded whole, and generated."""
+    return LINE_SEPARATOR.join(
+        (
+            FRONTMATTER_FENCE,
+            f"title: {project.name} — shipped work",
+            f"kind: {DocKind.GENERATED}",
+            f"read_when: {ReadWhen.LOOKED_UP}",
+            FRONTMATTER_FENCE,
+            "",
+            f"# {project.name} — shipped work",
+            "",
+            "Merged pull requests no other document here mentions, recorded as spine observed them.",
+        )
+    )
 
 
 def _merged_lines(*, facts: tuple[Fact, ...], mentioned: frozenset[str]) -> tuple[str, ...]:
@@ -51,8 +64,7 @@ def draft_from_drift(
     """A proposal recording merged work the corpus does not mention."""
     from ..facts.drift import referenced_pull_requests
 
-    target = _target_doc(docs=docs)
-    if target is None or not facts:
+    if not facts:
         return ()
     mentioned = frozenset(
         number
@@ -63,14 +75,15 @@ def draft_from_drift(
     if not lines:
         return ()
     body = "\n".join((PROPOSAL_APPEND_HEADING, "", *lines))
+    doc_id = _shipped_log_id(project=project)
     return (
         Proposal(
-            proposal_id=proposal_id_for(doc_id=target.doc_id, body=body),
+            proposal_id=proposal_id_for(doc_id=doc_id, body=body),
             project_slug=project.slug,
-            doc_id=target.doc_id,
-            doc_path=str(target.path),
+            doc_id=doc_id,
+            doc_path=SHIPPED_LOG_FILE_NAME,
             kind=ProposalKind.APPEND,
-            headline=f"Record {len(lines)} merged pull request(s) in {target.title}",
+            headline=f"Record {len(lines)} merged pull request(s) in {project.name}'s shipped log",
             rationale="These shipped but no document in this project mentions them.",
             body=body,
             state=ProposalState.PENDING,
@@ -110,9 +123,29 @@ def _folded_into(*, existing: str, body: str) -> str | None:
     return LINE_SEPARATOR.join(rebuilt).rstrip("\n") + "\n"
 
 
+def _link_from_brief(*, shipped_log: Path) -> None:
+    """Point the brief at a new shipped log once, so it is reachable like every other document."""
+    for candidate in sorted(shipped_log.parent.glob("*.md")):
+        text = candidate.read_text(encoding=CONTENT_ENCODING)
+        head = text.split(FRONTMATTER_FENCE, 2)[1] if text.startswith(FRONTMATTER_FENCE) else ""
+        if BRIEF_KIND_LINE not in head.splitlines():
+            continue
+        if SHIPPED_LOG_FILE_NAME not in text:
+            link = f"Merged work no other document mentions is in [shipped work]({SHIPPED_LOG_FILE_NAME})."
+            candidate.write_text(text.rstrip("\n") + "\n\n" + link + "\n", encoding=CONTENT_ENCODING)
+        return
+
+
 def apply_proposal(*, proposal: Proposal) -> bool:
-    """Append the proposed text to its document; returns False when nothing was written."""
+    """Append the proposed text to its document; returns False when nothing was written.
+
+    The shipped log is created on first use, and linked once from the brief.
+    """
     target = Path(proposal.doc_path)
+    if not target.is_file() and target.name == SHIPPED_LOG_FILE_NAME and target.parent.is_dir():
+        project = Project(slug=proposal.project_slug, name=proposal.project_slug, docs_dir=target.parent)
+        target.write_text(_shipped_log_text(project=project) + "\n", encoding=CONTENT_ENCODING)
+        _link_from_brief(shipped_log=target)
     if not target.is_file():
         return False
     existing = target.read_text(encoding=CONTENT_ENCODING).rstrip("\n")

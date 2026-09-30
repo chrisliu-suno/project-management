@@ -7,12 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from spine.constants import PROPOSAL_APPEND_HEADING, SPINE_HOME_ENV_VAR
+from spine.constants import (
+    PROPOSAL_APPEND_HEADING,
+    SHIPPED_LOG_FILE_NAME,
+    SHIPPED_LOG_STEM,
+    SPINE_HOME_ENV_VAR,
+)
 from spine.facts.model import Fact, FactKind, PullRequestState
 from spine.model import Doc, DocKind, Project, ReadWhen
-from spine.proposals import decide_proposal
+from spine.proposals import decide_proposal, generate_for_project
 from spine.proposals.draft import apply_proposal, draft_from_drift, proposal_id_for
-from spine.proposals.model import ProposalState
+from spine.proposals.model import ProposalKind, ProposalState
 from spine.proposals.store import ProposalStore
 
 PROJECT_SLUG = "alpha"
@@ -78,9 +83,19 @@ def test_no_facts_propose_nothing(corpus_dir: Path) -> None:
     assert draft_from_drift(project=_project(docs_dir=corpus_dir), docs=(_doc(stem="brief"),), facts=()) == ()
 
 
-def test_a_corpus_with_no_suitable_target_proposes_nothing(corpus_dir: Path) -> None:
+def test_shipped_work_goes_to_the_shipped_log_not_the_brief(corpus_dir: Path) -> None:
+    """The brief loads into every session; a growing list of pull requests would crowd it out."""
+    drafted = draft_from_drift(
+        project=_project(docs_dir=corpus_dir), docs=(_doc(stem="brief"),), facts=(_merged(number=11),)
+    )
+    assert drafted[0].doc_id == f"{PROJECT_SLUG}:{SHIPPED_LOG_STEM}"
+    assert drafted[0].doc_path == SHIPPED_LOG_FILE_NAME
+
+
+def test_a_corpus_with_no_brief_still_gets_a_shipped_log(corpus_dir: Path) -> None:
     docs = (_doc(stem="notes", kind=DocKind.AREA_DESIGN),)
-    assert draft_from_drift(project=_project(docs_dir=corpus_dir), docs=docs, facts=(_merged(number=1),)) == ()
+    drafted = draft_from_drift(project=_project(docs_dir=corpus_dir), docs=docs, facts=(_merged(number=1),))
+    assert drafted[0].doc_path == SHIPPED_LOG_FILE_NAME
 
 
 def test_the_same_edit_gets_the_same_id() -> None:
@@ -196,3 +211,82 @@ def test_cli_exposes_the_propose_subcommand() -> None:
 
     parsed = build_parser().parse_args(["propose", "list"])
     assert parsed.handler is not None
+
+
+BRIEF_WITH_FRONTMATTER = "---\ntitle: Alpha\nkind: brief\nread_when: every_time\n---\n\n# Alpha\n\nProse.\n"
+
+
+def _shipped_proposal(*, corpus_dir: Path, number: int = 11):
+    drafted = draft_from_drift(
+        project=_project(docs_dir=corpus_dir), docs=(_doc(stem="brief"),), facts=(_merged(number=number),)
+    )
+    return replace(drafted[0], doc_path=str(corpus_dir / drafted[0].doc_path))
+
+
+def test_accepting_creates_the_shipped_log_as_a_looked_up_generated_doc(corpus_dir: Path) -> None:
+    (corpus_dir / "brief.md").write_text(BRIEF_WITH_FRONTMATTER, encoding="utf-8")
+    assert apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir)) is True
+    written = (corpus_dir / SHIPPED_LOG_FILE_NAME).read_text(encoding="utf-8")
+    assert "kind: generated" in written
+    assert "read_when: looked_up" in written
+    assert "#11" in written
+    assert "#11" not in (corpus_dir / "brief.md").read_text(encoding="utf-8")
+
+
+def test_the_brief_links_the_shipped_log_once(corpus_dir: Path) -> None:
+    brief = corpus_dir / "brief.md"
+    brief.write_text(BRIEF_WITH_FRONTMATTER, encoding="utf-8")
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir, number=11))
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir, number=12))
+    assert brief.read_text(encoding="utf-8").count(f"]({SHIPPED_LOG_FILE_NAME})") == 1
+
+
+def test_a_document_that_only_mentions_brief_in_its_body_is_not_linked(corpus_dir: Path) -> None:
+    notes = corpus_dir / "notes.md"
+    notes.write_text("---\nkind: area_design\n---\n\nkind: brief is a word here.\n", encoding="utf-8")
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir))
+    assert SHIPPED_LOG_FILE_NAME not in notes.read_text(encoding="utf-8")
+
+
+def _registered_project(*, corpus_dir: Path) -> Project:
+    (corpus_dir / "brief.md").write_text(BRIEF_WITH_FRONTMATTER, encoding="utf-8")
+    return _project(docs_dir=corpus_dir)
+
+
+def test_a_newer_draft_supersedes_the_pending_one(corpus_dir: Path) -> None:
+    from spine.facts.store import FactStore
+
+    project = _registered_project(corpus_dir=corpus_dir)
+    FactStore().record(facts=(_merged(number=11),))
+    generate_for_project(project=project)
+    FactStore().record(facts=(_merged(number=11), _merged(number=12)))
+    generate_for_project(project=project)
+    pending = ProposalStore().pending(project_slug=PROJECT_SLUG)
+    assert len(pending) == 1
+    assert "#12" in pending[0].body
+
+
+def test_a_draft_seen_again_after_being_superseded_is_pending_again(corpus_dir: Path) -> None:
+    from spine.facts.store import FactStore
+
+    project = _registered_project(corpus_dir=corpus_dir)
+    FactStore().record(facts=(_merged(number=11),))
+    generate_for_project(project=project)
+    first = ProposalStore().pending(project_slug=PROJECT_SLUG)[0]
+    ProposalStore().supersede_others(project_slug=PROJECT_SLUG, kind=ProposalKind.APPEND, keep=())
+    assert ProposalStore().pending(project_slug=PROJECT_SLUG) == ()
+    generate_for_project(project=project)
+    assert [proposal.proposal_id for proposal in ProposalStore().pending(project_slug=PROJECT_SLUG)] == [first.proposal_id]
+
+
+def test_a_rejected_draft_stays_rejected_when_drafted_again(corpus_dir: Path) -> None:
+    from spine.facts.store import FactStore
+
+    project = _registered_project(corpus_dir=corpus_dir)
+    FactStore().record(facts=(_merged(number=11),))
+    generate_for_project(project=project)
+    first = ProposalStore().pending(project_slug=PROJECT_SLUG)[0]
+    decide_proposal(proposal_id=first.proposal_id, accept=False)
+    generate_for_project(project=project)
+    assert ProposalStore().pending(project_slug=PROJECT_SLUG) == ()
+    assert ProposalStore().get(proposal_id=first.proposal_id).state is ProposalState.REJECTED

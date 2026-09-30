@@ -266,6 +266,9 @@ GIT_LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%s"
 GIT_FIELD_SEPARATOR = "\x1f"
 GITHUB_CLI_PATH = "/opt/homebrew/bin/gh"
 FACTS_MIN_TITLE_TERM_LENGTH = 4
+# A pull request into any other branch is a release train, such as `main` merged into a deploy
+# branch: it touches everything and belongs to no project.
+FACTS_WORK_BASE_BRANCHES: frozenset[str] = frozenset({"main", "master"})
 CONVENTIONAL_COMMIT_TYPES: frozenset[str] = frozenset(
     {
         "build",
@@ -298,6 +301,15 @@ CRITIQUE_MAX_TOKENS = 8000
 
 PROPOSALS_DB_FILE_NAME = "proposals.sqlite3"
 PROPOSAL_APPEND_HEADING = "## Shipped since this document was written"
+# Shipped work is recorded in its own looked-up document, not the brief: the brief is loaded into
+# every session and has to stay short.
+SHIPPED_LOG_STEM = "shipped"
+SHIPPED_LOG_FILE_NAME = f"{SHIPPED_LOG_STEM}.md"
+# A citation of a closed pull request on a line that says what became of it is not stale.
+CLOSED_PR_ACKNOWLEDGED_PATTERN = (
+    r"closed|supersed|abandon|withdr|replac|reopen|revert|folded|dropped|~~"
+    r"|not merged|unmerged|never merged|instead of"
+)
 PROPOSAL_MAX_PER_PROJECT = 25
 
 DRIFT_MAX_REPORTED_DOCS = 8

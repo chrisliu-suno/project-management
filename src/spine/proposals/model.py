@@ -12,6 +12,8 @@ class ProposalState(StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    # A newer draft for the same project replaced it before anyone decided.
+    SUPERSEDED = "superseded"
 
 
 class ProposalKind(StrEnum):

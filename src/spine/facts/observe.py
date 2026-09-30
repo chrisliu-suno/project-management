@@ -16,6 +16,7 @@ from ..constants import (
     FACTS_COMMIT_LIMIT,
     FACTS_MIN_TITLE_TERM_LENGTH,
     FACTS_PR_LIMIT,
+    FACTS_WORK_BASE_BRANCHES,
     GIT_FIELD_SEPARATOR,
     GIT_LOG_FORMAT,
     GITHUB_CLI_PATH,
@@ -25,8 +26,9 @@ from ..model import Project
 from .model import Fact, FactKind, PullRequestState
 
 COMMIT_FIELD_COUNT = 4
-PR_JSON_FIELDS = "number,title,author,state,createdAt,mergedAt,url,headRefName,files"
+PR_JSON_FIELDS = "number,title,author,state,createdAt,mergedAt,url,headRefName,baseRefName,files"
 HEAD_REF_FIELD = "headRefName"
+BASE_REF_FIELD = "baseRefName"
 MERGED_AT_FIELD = "mergedAt"
 FILES_FIELD = "files"
 FILE_PATH_KEY = "path"
@@ -163,8 +165,12 @@ def is_relevant(*, entry: dict, project: Project) -> bool:
     One repository holds several projects, so every merged pull request would
     otherwise read as undocumented work on all of them. A project that declares its
     code paths is judged on those alone: which files a change touched is direct
-    evidence where a shared title word is a guess.
+    evidence where a shared title word is a guess. A pull request into a branch other than the
+    main line is a release train that touches every project's files, so it belongs to none.
     """
+    base = entry.get(BASE_REF_FIELD)
+    if base and str(base) not in FACTS_WORK_BASE_BRANCHES:
+        return False
     head = str(entry.get(HEAD_REF_FIELD, ""))
     if any(head.startswith(prefix) for prefix in project.branch_prefixes):
         return True

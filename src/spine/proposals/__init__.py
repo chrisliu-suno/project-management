@@ -45,7 +45,16 @@ def generate_for_project(*, project) -> int:
                     "kind": proposal.kind, "state": proposal.state})
         for proposal in drafted
     )
-    return ProposalStore().add(proposals=resolved)
+    store = ProposalStore()
+    added = store.add(proposals=resolved)
+    # Each sweep drafts the whole undocumented set again, so only its newest draft is worth a
+    # decision; an older one would queue the same pull requests twice.
+    store.supersede_others(
+        project_slug=project.slug,
+        kind=ProposalKind.APPEND,
+        keep=tuple(proposal.proposal_id for proposal in resolved),
+    )
+    return added
 
 
 def decide_proposal(*, proposal_id: str, accept: bool) -> tuple[bool, str]:
