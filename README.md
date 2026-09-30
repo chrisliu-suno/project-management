@@ -27,7 +27,11 @@ spine serve      # http://127.0.0.1:8791
 ```
 
 **3. Decide the proposals it queues.** When work ships that no document mentions, spine drafts the
-edit and waits. Accept or reject in the dashboard; accepting appends to the document.
+edit and waits. Accept or reject in the dashboard; accepting appends to the project's `shipped.md`,
+a looked-up log created on first use and linked once from the brief, which stays short. Each sweep
+redrafts the whole undocumented set, so a newer draft supersedes the one still waiting. Only pull
+requests into `main` count: a release train such as `main` merged into a deploy branch touches
+every project's files and belongs to none.
 
 That is the whole manual surface. In particular you do not run the indexer, the fact observer, or
 the proposal drafter — `spine refresh` does all three for every project, and it runs on a

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 
+from ..constants import CLOSED_PR_ACKNOWLEDGED_PATTERN, CLOSED_PR_ACKNOWLEDGED_WINDOW
 from ..dashboard import Finding, Severity
 from ..model import Doc, Link
 from .model import Fact, FactKind, PullRequestState
 
 PR_REFERENCE_PATTERN = re.compile(r"#(\d{2,6})")
+CLOSED_PR_ACKNOWLEDGED = re.compile(CLOSED_PR_ACKNOWLEDGED_PATTERN, re.IGNORECASE)
 MAX_REPORTED_REFERENCES = 12
 
 
@@ -20,6 +22,22 @@ def referenced_pull_requests(*, docs: tuple[Doc, ...]) -> dict[str, tuple[str, .
         if numbers:
             found[doc.doc_id] = numbers
     return found
+
+
+def unacknowledged_references(*, doc: Doc) -> frozenset[str]:
+    """Pull-request numbers cited at least once without saying, close by, what became of them."""
+    return frozenset(
+        match.group(1)
+        for line in doc.body.splitlines()
+        for match in PR_REFERENCE_PATTERN.finditer(line)
+        if not _is_acknowledged(line=line, start=match.start(), end=match.end())
+    )
+
+
+def _is_acknowledged(*, line: str, start: int, end: int) -> bool:
+    """Whether the citation's own line says what became of it within a few words."""
+    window = line[max(0, start - CLOSED_PR_ACKNOWLEDGED_WINDOW) : end + CLOSED_PR_ACKNOWLEDGED_WINDOW]
+    return CLOSED_PR_ACKNOWLEDGED.search(window) is not None
 
 
 def _facts_by_reference(*, facts: tuple[Fact, ...]) -> dict[str, Fact]:
@@ -60,14 +78,14 @@ def merged_but_undocumented(
 def documented_but_unmerged(
     *, docs: tuple[Doc, ...], facts: tuple[Fact, ...]
 ) -> tuple[Finding, ...]:
-    """Documents citing pull requests that never merged."""
+    """Documents citing pull requests that never merged, where no line citing it says so."""
     by_reference = _facts_by_reference(facts=facts)
     stale: list[str] = []
-    for doc_id, numbers in referenced_pull_requests(docs=docs).items():
-        for number in numbers:
+    for doc in docs:
+        for number in sorted(unacknowledged_references(doc=doc)):
             fact = by_reference.get(number)
             if fact is not None and fact.state == str(PullRequestState.CLOSED):
-                stale.append(f"{doc_id} cites #{number}")
+                stale.append(f"{doc.doc_id} cites #{number}")
     if not stale:
         return ()
     return (

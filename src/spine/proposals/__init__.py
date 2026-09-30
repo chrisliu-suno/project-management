@@ -45,7 +45,16 @@ def generate_for_project(*, project) -> int:
                     "kind": proposal.kind, "state": proposal.state})
         for proposal in drafted
     )
-    return ProposalStore().add(proposals=resolved)
+    store = ProposalStore()
+    added = store.add(proposals=resolved)
+    # Each sweep drafts the whole undocumented set again, so only its newest draft is worth a
+    # decision; an older one would queue the same pull requests twice.
+    store.supersede_others(
+        project_slug=project.slug,
+        kind=ProposalKind.APPEND,
+        keep=tuple(proposal.proposal_id for proposal in resolved),
+    )
+    return added
 
 
 def decide_proposal(*, proposal_id: str, accept: bool) -> tuple[bool, str]:
@@ -59,7 +68,9 @@ def decide_proposal(*, proposal_id: str, accept: bool) -> tuple[bool, str]:
     if not accept:
         store.decide(proposal_id=proposal_id, state=ProposalState.REJECTED)
         return True, "rejected"
-    if not apply_proposal(proposal=proposal):
+    project = _project_or_none(slug=proposal.project_slug)
+    project_name = project.name if project is not None else None
+    if not apply_proposal(proposal=proposal, project_name=project_name):
         return False, f"cannot write {proposal.doc_path}"
     store.decide(proposal_id=proposal_id, state=ProposalState.ACCEPTED)
     return True, f"applied to {proposal.doc_path}"

@@ -27,12 +27,20 @@ CREATE TABLE IF NOT EXISTS proposals (
 """
 
 UPSERT_SQL = """
-INSERT OR IGNORE INTO proposals
+INSERT INTO proposals
     (proposal_id, project_slug, doc_id, doc_path, kind, headline, rationale,
      body, state, created_at, decided_at)
 VALUES
     (:proposal_id, :project_slug, :doc_id, :doc_path, :kind, :headline, :rationale,
      :body, :state, :created_at, :decided_at)
+ON CONFLICT (proposal_id) DO UPDATE SET state = excluded.state, decided_at = ''
+WHERE proposals.state = 'superseded'
+"""
+
+SUPERSEDE_SQL = """
+UPDATE proposals SET state = :superseded, decided_at = :decided_at
+WHERE project_slug = :project_slug AND kind = :kind AND state = :pending
+  AND proposal_id NOT IN (SELECT value FROM json_each(:keep))
 """
 
 SELECT_PENDING_SQL = """
@@ -92,6 +100,24 @@ class ProposalStore:
         with self._connect() as connection:
             cursor = connection.executemany(
                 UPSERT_SQL, [proposal.as_dict() for proposal in proposals]
+            )
+        return cursor.rowcount
+
+    def supersede_others(self, *, project_slug: str, kind: ProposalKind, keep: tuple[str, ...]) -> int:
+        """Retire every pending proposal of this kind for the project except the ones kept."""
+        import json
+
+        with self._connect() as connection:
+            cursor = connection.execute(
+                SUPERSEDE_SQL,
+                {
+                    "superseded": str(ProposalState.SUPERSEDED),
+                    "pending": str(ProposalState.PENDING),
+                    "decided_at": now_iso(),
+                    "project_slug": project_slug,
+                    "kind": str(kind),
+                    "keep": json.dumps(list(keep)),
+                },
             )
         return cursor.rowcount
 

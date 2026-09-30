@@ -14,6 +14,7 @@ from ..constants import (
     CONVENTIONAL_COMMIT_TYPES,
     FACTS_AUTHOR_PR_LIMIT,
     FACTS_COMMIT_LIMIT,
+    FACTS_MAIN_LINE_BRANCHES,
     FACTS_MIN_TITLE_TERM_LENGTH,
     FACTS_PR_LIMIT,
     GIT_FIELD_SEPARATOR,
@@ -163,9 +164,12 @@ def is_relevant(*, entry: dict, project: Project) -> bool:
     One repository holds several projects, so every merged pull request would
     otherwise read as undocumented work on all of them. A project that declares its
     code paths is judged on those alone: which files a change touched is direct
-    evidence where a shared title word is a guess.
+    evidence where a shared title word is a guess. A pull request from the main line into a
+    deploy branch is a release train that touches every project's files, so it belongs to none.
     """
     head = str(entry.get(HEAD_REF_FIELD, ""))
+    if head in FACTS_MAIN_LINE_BRANCHES:
+        return False
     if any(head.startswith(prefix) for prefix in project.branch_prefixes):
         return True
     if project.code_path_globs:
