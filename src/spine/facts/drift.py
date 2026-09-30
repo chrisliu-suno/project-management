@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from ..constants import CLOSED_PR_ACKNOWLEDGED_PATTERN
+from ..constants import CLOSED_PR_ACKNOWLEDGED_PATTERN, CLOSED_PR_ACKNOWLEDGED_WINDOW
 from ..dashboard import Finding, Severity
 from ..model import Doc, Link
 from .model import Fact, FactKind, PullRequestState
@@ -25,13 +25,19 @@ def referenced_pull_requests(*, docs: tuple[Doc, ...]) -> dict[str, tuple[str, .
 
 
 def unacknowledged_references(*, doc: Doc) -> frozenset[str]:
-    """Pull-request numbers cited on at least one line that does not say what became of them."""
+    """Pull-request numbers cited at least once without saying, close by, what became of them."""
     return frozenset(
-        number
+        match.group(1)
         for line in doc.body.splitlines()
-        if not CLOSED_PR_ACKNOWLEDGED.search(line)
-        for number in PR_REFERENCE_PATTERN.findall(line)
+        for match in PR_REFERENCE_PATTERN.finditer(line)
+        if not _is_acknowledged(line=line, start=match.start(), end=match.end())
     )
+
+
+def _is_acknowledged(*, line: str, start: int, end: int) -> bool:
+    """Whether the citation's own line says what became of it within a few words."""
+    window = line[max(0, start - CLOSED_PR_ACKNOWLEDGED_WINDOW) : end + CLOSED_PR_ACKNOWLEDGED_WINDOW]
+    return CLOSED_PR_ACKNOWLEDGED.search(window) is not None
 
 
 def _facts_by_reference(*, facts: tuple[Fact, ...]) -> dict[str, Fact]:

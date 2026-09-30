@@ -248,6 +248,26 @@ def test_a_document_that_only_mentions_brief_in_its_body_is_not_linked(corpus_di
     assert SHIPPED_LOG_FILE_NAME not in notes.read_text(encoding="utf-8")
 
 
+def test_a_brief_named_like_an_entry_point_is_linked_without_frontmatter(corpus_dir: Path) -> None:
+    brief = corpus_dir / "alpha-start-here.md"
+    brief.write_text("# Alpha\n\nProse.\n", encoding="utf-8")
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir))
+    assert f"]({SHIPPED_LOG_FILE_NAME})" in brief.read_text(encoding="utf-8")
+
+
+def test_the_brief_link_is_retried_when_the_log_already_exists(corpus_dir: Path) -> None:
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir, number=11))
+    brief = corpus_dir / "brief.md"
+    brief.write_text(BRIEF_WITH_FRONTMATTER, encoding="utf-8")
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir, number=12))
+    assert f"]({SHIPPED_LOG_FILE_NAME})" in brief.read_text(encoding="utf-8")
+
+
+def test_the_shipped_log_is_titled_with_the_project_name(corpus_dir: Path) -> None:
+    apply_proposal(proposal=_shipped_proposal(corpus_dir=corpus_dir), project_name="Alpha Project")
+    assert "# Alpha Project" in (corpus_dir / SHIPPED_LOG_FILE_NAME).read_text(encoding="utf-8")
+
+
 def _registered_project(*, corpus_dir: Path) -> Project:
     (corpus_dir / "brief.md").write_text(BRIEF_WITH_FRONTMATTER, encoding="utf-8")
     return _project(docs_dir=corpus_dir)

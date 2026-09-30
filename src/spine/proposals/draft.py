@@ -13,7 +13,6 @@ from .model import Proposal, ProposalKind, ProposalState
 
 CONTENT_ENCODING = "utf-8"
 ID_DIGEST_LENGTH = 12
-BRIEF_KIND_LINE = f"kind: {DocKind.BRIEF}"
 FRONTMATTER_FENCE = "---"
 LINE_SEPARATOR = "\n"
 MARKDOWN_HEADING_PREFIX = "#"
@@ -123,29 +122,52 @@ def _folded_into(*, existing: str, body: str) -> str | None:
     return LINE_SEPARATOR.join(rebuilt).rstrip("\n") + "\n"
 
 
-def _link_from_brief(*, shipped_log: Path) -> None:
-    """Point the brief at a new shipped log once, so it is reachable like every other document."""
-    for candidate in sorted(shipped_log.parent.glob("*.md")):
-        text = candidate.read_text(encoding=CONTENT_ENCODING)
-        head = text.split(FRONTMATTER_FENCE, 2)[1] if text.startswith(FRONTMATTER_FENCE) else ""
-        if BRIEF_KIND_LINE not in head.splitlines():
-            continue
-        if SHIPPED_LOG_FILE_NAME not in text:
-            link = f"Merged work no other document mentions is in [shipped work]({SHIPPED_LOG_FILE_NAME})."
-            candidate.write_text(text.rstrip("\n") + "\n\n" + link + "\n", encoding=CONTENT_ENCODING)
+def _brief_path(*, docs_dir: Path, project_slug: str) -> Path | None:
+    """The brief as the loader sees it: declared, named like an entry point, or classified."""
+    from ..index import load_corpus
+
+    briefs = sorted(
+        doc.path
+        for doc in load_corpus(docs_dir=docs_dir, project_slug=project_slug)
+        if doc.kind is DocKind.BRIEF and doc.path.parent == docs_dir
+    )
+    return briefs[0] if briefs else None
+
+
+def _link_from_brief(*, shipped_log: Path, project_slug: str) -> None:
+    """Point the brief at the shipped log, so it is reachable like every other document.
+
+    Idempotent, and tried on every accept: an attempt that failed is retried next time.
+    """
+    try:
+        brief = _brief_path(docs_dir=shipped_log.parent, project_slug=project_slug)
+        if brief is None:
+            return
+        text = brief.read_text(encoding=CONTENT_ENCODING)
+    except (OSError, UnicodeDecodeError):
         return
+    if SHIPPED_LOG_FILE_NAME in text:
+        return
+    link = f"Merged work no other document mentions is in [shipped work]({SHIPPED_LOG_FILE_NAME})."
+    brief.write_text(text.rstrip("\n") + "\n\n" + link + "\n", encoding=CONTENT_ENCODING)
 
 
-def apply_proposal(*, proposal: Proposal) -> bool:
+def apply_proposal(*, proposal: Proposal, project_name: str | None = None) -> bool:
     """Append the proposed text to its document; returns False when nothing was written.
 
     The shipped log is created on first use, and linked once from the brief.
     """
     target = Path(proposal.doc_path)
-    if not target.is_file() and target.name == SHIPPED_LOG_FILE_NAME and target.parent.is_dir():
-        project = Project(slug=proposal.project_slug, name=proposal.project_slug, docs_dir=target.parent)
+    is_shipped_log = target.name == SHIPPED_LOG_FILE_NAME and target.parent.is_dir()
+    if is_shipped_log and not target.is_file():
+        project = Project(
+            slug=proposal.project_slug,
+            name=project_name or proposal.project_slug,
+            docs_dir=target.parent,
+        )
         target.write_text(_shipped_log_text(project=project) + "\n", encoding=CONTENT_ENCODING)
-        _link_from_brief(shipped_log=target)
+    if is_shipped_log:
+        _link_from_brief(shipped_log=target, project_slug=proposal.project_slug)
     if not target.is_file():
         return False
     existing = target.read_text(encoding=CONTENT_ENCODING).rstrip("\n")

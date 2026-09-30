@@ -68,7 +68,9 @@ def decide_proposal(*, proposal_id: str, accept: bool) -> tuple[bool, str]:
     if not accept:
         store.decide(proposal_id=proposal_id, state=ProposalState.REJECTED)
         return True, "rejected"
-    if not apply_proposal(proposal=proposal):
+    project = _project_or_none(slug=proposal.project_slug)
+    project_name = project.name if project is not None else None
+    if not apply_proposal(proposal=proposal, project_name=project_name):
         return False, f"cannot write {proposal.doc_path}"
     store.decide(proposal_id=proposal_id, state=ProposalState.ACCEPTED)
     return True, f"applied to {proposal.doc_path}"

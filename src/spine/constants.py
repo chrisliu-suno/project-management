@@ -266,9 +266,10 @@ GIT_LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%s"
 GIT_FIELD_SEPARATOR = "\x1f"
 GITHUB_CLI_PATH = "/opt/homebrew/bin/gh"
 FACTS_MIN_TITLE_TERM_LENGTH = 4
-# A pull request into any other branch is a release train, such as `main` merged into a deploy
-# branch: it touches everything and belongs to no project.
-FACTS_WORK_BASE_BRANCHES: frozenset[str] = frozenset({"main", "master"})
+# A pull request whose head is the main line is a release train, such as `main` merged into a
+# deploy branch: it touches everything and belongs to no project. Stacked pull requests, whose
+# base is a feature branch, are ordinary work and are still judged.
+FACTS_MAIN_LINE_BRANCHES: frozenset[str] = frozenset({"main", "master"})
 CONVENTIONAL_COMMIT_TYPES: frozenset[str] = frozenset(
     {
         "build",
@@ -305,11 +306,12 @@ PROPOSAL_APPEND_HEADING = "## Shipped since this document was written"
 # every session and has to stay short.
 SHIPPED_LOG_STEM = "shipped"
 SHIPPED_LOG_FILE_NAME = f"{SHIPPED_LOG_STEM}.md"
-# A citation of a closed pull request on a line that says what became of it is not stale.
+# A citation of a closed pull request that says, close by, what became of it is not stale.
+# Words that also describe an open pull request ("unmerged") do not count.
 CLOSED_PR_ACKNOWLEDGED_PATTERN = (
-    r"closed|supersed|abandon|withdr|replac|reopen|revert|folded|dropped|~~"
-    r"|not merged|unmerged|never merged|instead of"
+    r"~~|\b(?:closed|supersed|abandon|withdr|replaced|reopen|revert|folded|dropped|never merged)"
 )
+CLOSED_PR_ACKNOWLEDGED_WINDOW = 60
 PROPOSAL_MAX_PER_PROJECT = 25
 
 DRIFT_MAX_REPORTED_DOCS = 8

@@ -104,19 +104,28 @@ def test_a_closed_pull_request_still_cited_as_live_elsewhere_is_drift() -> None:
     assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
 
 
-def test_a_pull_request_into_a_release_branch_belongs_to_no_project() -> None:
+def test_a_release_train_from_main_belongs_to_no_project() -> None:
     """Merging main into a deploy branch touches every project's files."""
-    entry = {"headRefName": "chris/feat/access-thing", "baseRefName": "ui-prod", "title": "access"}
+    entry = {"headRefName": "main", "baseRefName": "ui-prod", "title": "Deploy UI: merge main into ui-prod"}
     assert is_relevant(entry=entry, project=_project(prefixes=("chris/feat/access",))) is False
 
 
-def test_a_pull_request_into_main_is_judged_as_before() -> None:
-    entry = {"headRefName": "chris/feat/access-thing", "baseRefName": "main", "title": "x"}
+def test_a_stacked_pull_request_into_a_feature_branch_is_still_judged() -> None:
+    entry = {"headRefName": "chris/feat/access-thing", "baseRefName": "chris/feat/access-base", "title": "x"}
     assert is_relevant(entry=entry, project=_project(prefixes=("chris/feat/access",))) is True
 
 
-def test_the_query_asks_for_the_base_branch() -> None:
-    assert "baseRefName" in observe_module.PR_JSON_FIELDS.split(",")
+def test_an_unrelated_acknowledgment_far_along_the_line_does_not_hide_a_citation() -> None:
+    padding = "x" * 80
+    docs = (_doc(stem="n", body=f"Work continues in #4242. {padding} This supersedes the old plan."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
+
+
+def test_unmerged_does_not_count_as_saying_a_pull_request_closed() -> None:
+    docs = (_doc(stem="n", body="#4242 is open and unmerged."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
 
 
 def test_citing_an_open_pull_request_is_not_drift() -> None:
