@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from spine.constants import FACTS_AUTHOR_PR_LIMIT, SPINE_HOME_ENV_VAR
+from spine.constants import CLOSED_PR_ACKNOWLEDGED_WINDOW, FACTS_AUTHOR_PR_LIMIT, SPINE_HOME_ENV_VAR
 from spine.dashboard import Severity
 from spine.facts import observe as observe_module
 from spine.facts.drift import (
@@ -98,8 +98,39 @@ def test_a_closed_pull_request_cited_as_closed_is_not_drift() -> None:
     assert documented_but_unmerged(docs=docs, facts=facts) == ()
 
 
-def test_a_closed_pull_request_still_cited_as_live_elsewhere_is_drift() -> None:
+def test_stating_the_fate_once_covers_the_other_mentions_in_that_document() -> None:
+    docs = (_doc(stem="n", body="#4242 was superseded by #4343.\n\nWhat carried over from #4242 is below."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_stating_the_fate_in_one_document_does_not_cover_another() -> None:
+    docs = (_doc(stem="a", body="#4242 was closed."), _doc(stem="b", body="The work lands in #4242."))
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
+
+
+def test_a_fate_stated_at_the_end_of_a_table_row_counts() -> None:
+    docs = (_doc(stem="n", body="| #4242 | Tests that the live and dormant operation sets stay identical, test-only | closed |"),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_a_list_ending_with_its_fate_covers_every_pull_request_in_it() -> None:
+    docs = (_doc(stem="n", body="Rebase #4100, #4242, #4343 onto main. Dropped: all three closed."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED), _pr(number=4100, state=PullRequestState.CLOSED))
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_a_later_live_plan_goes_quiet_once_the_doc_states_the_fate() -> None:
+    """Deliberate trade-off: one stated fate covers the whole document."""
     docs = (_doc(stem="n", body="#4242 was superseded.\n\nThe work lands in #4242 next week."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_reopens_does_not_count_as_a_fate() -> None:
+    docs = (_doc(stem="n", body="If product reopens it, it must follow #4242."),)
     facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
     assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
 
@@ -116,7 +147,7 @@ def test_a_stacked_pull_request_into_a_feature_branch_is_still_judged() -> None:
 
 
 def test_an_unrelated_acknowledgment_far_along_the_line_does_not_hide_a_citation() -> None:
-    padding = "x" * 80
+    padding = "x" * (CLOSED_PR_ACKNOWLEDGED_WINDOW + 20)
     docs = (_doc(stem="n", body=f"Work continues in #4242. {padding} This supersedes the old plan."),)
     facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
     assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
