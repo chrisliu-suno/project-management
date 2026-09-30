@@ -41,7 +41,10 @@ def unacknowledged_references(*, doc: Doc) -> frozenset[str]:
 
 
 def _is_acknowledged(*, line: str, start: int, end: int) -> bool:
-    """Whether the citation's own line says what became of it within a few words."""
+    """Whether a fate word sits within the window of the citation on its own line.
+
+    Every citation in reach counts, so a list ending "(all four closed)" covers all four.
+    """
     window = line[max(0, start - CLOSED_PR_ACKNOWLEDGED_WINDOW) : end + CLOSED_PR_ACKNOWLEDGED_WINDOW]
     return CLOSED_PR_ACKNOWLEDGED.search(window) is not None
 

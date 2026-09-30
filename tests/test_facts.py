@@ -110,6 +110,31 @@ def test_stating_the_fate_in_one_document_does_not_cover_another() -> None:
     assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
 
 
+def test_a_fate_stated_at_the_end_of_a_table_row_counts() -> None:
+    docs = (_doc(stem="n", body="| #4242 | Tests that the live and dormant operation sets stay identical, test-only | closed |"),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_a_list_ending_with_its_fate_covers_every_pull_request_in_it() -> None:
+    docs = (_doc(stem="n", body="Rebase #4100, #4242, #4343 onto main. Dropped: all three closed."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED), _pr(number=4100, state=PullRequestState.CLOSED))
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_a_later_live_plan_goes_quiet_once_the_doc_states_the_fate() -> None:
+    """Deliberate trade-off: one stated fate covers the whole document."""
+    docs = (_doc(stem="n", body="#4242 was superseded.\n\nThe work lands in #4242 next week."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_reopens_does_not_count_as_a_fate() -> None:
+    docs = (_doc(stem="n", body="If product reopens it, it must follow #4242."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
+
+
 def test_a_release_train_from_main_belongs_to_no_project() -> None:
     """Merging main into a deploy branch touches every project's files."""
     entry = {"headRefName": "main", "baseRefName": "ui-prod", "title": "Deploy UI: merge main into ui-prod"}

@@ -309,7 +309,7 @@ SHIPPED_LOG_FILE_NAME = f"{SHIPPED_LOG_STEM}.md"
 # A citation of a closed pull request that says, close by, what became of it is not stale.
 # Words that also describe an open pull request ("unmerged") do not count.
 CLOSED_PR_ACKNOWLEDGED_PATTERN = (
-    r"~~|\b(?:closed|supersed|abandon|withdr|replaced|reopen|revert|folded|dropped|never merged)"
+    r"~~|\b(?:closed|supersed|abandon|withdr|replaced|revert|folded|dropped|never merged)"
 )
 CLOSED_PR_ACKNOWLEDGED_WINDOW = 120
 PROPOSAL_MAX_PER_PROJECT = 25
