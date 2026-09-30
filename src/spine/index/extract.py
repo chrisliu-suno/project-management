@@ -27,6 +27,7 @@ SUPERSEDED_BY_PATTERN = re.compile(r"\bsuperseded\s+by\b", re.IGNORECASE)
 # Active voice only: the bare participle ("marked superseded") describes the target's
 # state, not a claim the citing document makes.
 SUPERSEDES_PATTERN = re.compile(r"\bsupersedes?\b", re.IGNORECASE)
+PULL_REQUEST_OBJECT_PATTERN = re.compile(r"\s*(?:PR\s*)?#\d", re.IGNORECASE)
 CITED_BY_PATTERN = re.compile(r"\bcited\s+by\b", re.IGNORECASE)
 RAMPS_PATTERN = re.compile(r"\bramps?\b", re.IGNORECASE)
 VERIFIES_PATTERN = re.compile(r"\bverif(?:ies|ied|y)\b", re.IGNORECASE)
@@ -169,13 +170,24 @@ def check_is_negated(*, sentence: str, match: re.Match[str]) -> bool:
     return NEGATION_PATTERN.search(sentence[: match.start()]) is not None
 
 
+def check_is_about_a_pull_request(*, sentence: str, match: re.Match[str]) -> bool:
+    """Whether the cue's object is a pull request rather than a document.
+
+    "(closed; superseded by #51056)" says what became of a pull request; it makes no claim
+    about any document linked elsewhere in the sentence.
+    """
+    return PULL_REQUEST_OBJECT_PATTERN.match(sentence, match.end()) is not None
+
+
 def _match_phrasing(*, sentence: str, rules: PhrasingRules) -> LinkType | None:
     if not carries_a_claim(sentence=sentence):
         return None
     for pattern, link_type in rules:
-        match = pattern.search(sentence)
-        if match is not None and not check_is_negated(sentence=sentence, match=match):
-            return link_type
+        for match in pattern.finditer(sentence):
+            if check_is_negated(sentence=sentence, match=match):
+                break
+            if not check_is_about_a_pull_request(sentence=sentence, match=match):
+                return link_type
     return None
 
 

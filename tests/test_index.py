@@ -499,3 +499,28 @@ def test_the_claim_length_gate_is_measured_in_characters() -> None:
 
     assert carries_a_claim(sentence="short claim")
     assert not carries_a_claim(sentence="x" * 400)
+
+
+def test_superseded_by_a_pull_request_claims_nothing_about_a_linked_doc() -> None:
+    target = make_doc(stem="requirements-review", body="Review.")
+    source = make_doc(
+        stem="interface",
+        body="Built from the [requirements review](requirements-review.md) and PR #47718 "
+        + "(closed; superseded by #51056).",
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert not any(link.link_type is LinkType.SUPERSEDES for link in links)
+
+
+def test_a_doc_superseded_cue_still_counts_after_a_pull_request_one() -> None:
+    target = make_doc(stem="design-scheduler", body="Allocator notes.")
+    source = make_doc(
+        stem="decisions",
+        body="#4100 was superseded by #4242, and this is superseded by [the design](design-scheduler.md).",
+        kind=DocKind.DECISION_LOG,
+        read_when=ReadWhen.LOG,
+    )
+    links = extract_from(doc=source, corpus=(source, target))
+    assert (target.doc_id, source.doc_id, LinkType.SUPERSEDES) in {
+        (link.src_id, link.dst_id, link.link_type) for link in links
+    }
