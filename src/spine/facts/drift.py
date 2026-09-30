@@ -25,13 +25,19 @@ def referenced_pull_requests(*, docs: tuple[Doc, ...]) -> dict[str, tuple[str, .
 
 
 def unacknowledged_references(*, doc: Doc) -> frozenset[str]:
-    """Pull-request numbers cited at least once without saying, close by, what became of them."""
-    return frozenset(
-        match.group(1)
-        for line in doc.body.splitlines()
-        for match in PR_REFERENCE_PATTERN.finditer(line)
-        if not _is_acknowledged(line=line, start=match.start(), end=match.end())
-    )
+    """Pull-request numbers the document cites without ever saying what became of them.
+
+    Saying it once, next to any one citation, covers the document's other mentions: a note
+    about a closed pull request names it many times after stating its fate.
+    """
+    cited: set[str] = set()
+    acknowledged: set[str] = set()
+    for line in doc.body.splitlines():
+        for match in PR_REFERENCE_PATTERN.finditer(line):
+            cited.add(match.group(1))
+            if _is_acknowledged(line=line, start=match.start(), end=match.end()):
+                acknowledged.add(match.group(1))
+    return frozenset(cited - acknowledged)
 
 
 def _is_acknowledged(*, line: str, start: int, end: int) -> bool:

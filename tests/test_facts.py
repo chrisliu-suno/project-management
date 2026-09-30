@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from spine.constants import FACTS_AUTHOR_PR_LIMIT, SPINE_HOME_ENV_VAR
+from spine.constants import CLOSED_PR_ACKNOWLEDGED_WINDOW, FACTS_AUTHOR_PR_LIMIT, SPINE_HOME_ENV_VAR
 from spine.dashboard import Severity
 from spine.facts import observe as observe_module
 from spine.facts.drift import (
@@ -98,8 +98,14 @@ def test_a_closed_pull_request_cited_as_closed_is_not_drift() -> None:
     assert documented_but_unmerged(docs=docs, facts=facts) == ()
 
 
-def test_a_closed_pull_request_still_cited_as_live_elsewhere_is_drift() -> None:
-    docs = (_doc(stem="n", body="#4242 was superseded.\n\nThe work lands in #4242 next week."),)
+def test_stating_the_fate_once_covers_the_other_mentions_in_that_document() -> None:
+    docs = (_doc(stem="n", body="#4242 was superseded by #4343.\n\nWhat carried over from #4242 is below."),)
+    facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
+    assert documented_but_unmerged(docs=docs, facts=facts) == ()
+
+
+def test_stating_the_fate_in_one_document_does_not_cover_another() -> None:
+    docs = (_doc(stem="a", body="#4242 was closed."), _doc(stem="b", body="The work lands in #4242."))
     facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
     assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"
 
@@ -116,7 +122,7 @@ def test_a_stacked_pull_request_into_a_feature_branch_is_still_judged() -> None:
 
 
 def test_an_unrelated_acknowledgment_far_along_the_line_does_not_hide_a_citation() -> None:
-    padding = "x" * 80
+    padding = "x" * (CLOSED_PR_ACKNOWLEDGED_WINDOW + 20)
     docs = (_doc(stem="n", body=f"Work continues in #4242. {padding} This supersedes the old plan."),)
     facts = (_pr(number=4242, state=PullRequestState.CLOSED),)
     assert documented_but_unmerged(docs=docs, facts=facts)[0].code == "cites_closed_pr"

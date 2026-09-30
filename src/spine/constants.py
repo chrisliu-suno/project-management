@@ -311,7 +311,7 @@ SHIPPED_LOG_FILE_NAME = f"{SHIPPED_LOG_STEM}.md"
 CLOSED_PR_ACKNOWLEDGED_PATTERN = (
     r"~~|\b(?:closed|supersed|abandon|withdr|replaced|reopen|revert|folded|dropped|never merged)"
 )
-CLOSED_PR_ACKNOWLEDGED_WINDOW = 60
+CLOSED_PR_ACKNOWLEDGED_WINDOW = 120
 PROPOSAL_MAX_PER_PROJECT = 25
 
 DRIFT_MAX_REPORTED_DOCS = 8
