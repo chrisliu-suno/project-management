@@ -79,3 +79,15 @@ def test_entries_are_not_reported_as_orphans(fixture_docs: tuple[Doc, ...]) -> N
     )
     orphan_ids = [doc.doc_id for doc in store.orphans(project_slug=PROJECT_SLUG)]
     assert all("#" not in doc_id for doc_id in orphan_ids)
+
+
+def test_an_entry_saying_a_pull_request_was_superseded_supersedes_no_sibling(tmp_path: Path) -> None:
+    (tmp_path / "decisions.md").write_text(
+        "---\nkind: decision_log\nread_when: log\ntitle: Decision log\n---\n\n# Decision log\n\n"
+        + "## Pending invites are separate rows\nStatus: decided.\n"
+        + "The old invites migration stack (#45691) was closed, superseded by #46369.\n\n"
+        + "## Invites migration stack ships first\nStatus: decided.\nShip the stack.\n",
+        encoding="utf-8",
+    )
+    docs = load_corpus(docs_dir=tmp_path, project_slug=PROJECT_SLUG)
+    assert entry_supersede_links(corpus=docs) == ()

@@ -16,7 +16,12 @@ from ..constants import (
 )
 from ..model import Doc, Link, LinkType
 from .backlinks import deduplicate_links
-from .extract import SUPERSEDED_BY_PATTERN, SUPERSEDES_PATTERN, split_sentences
+from .extract import (
+    SUPERSEDED_BY_PATTERN,
+    SUPERSEDES_PATTERN,
+    check_is_about_a_pull_request,
+    split_sentences,
+)
 
 PLURAL_SUFFIX = "s"
 TERM_PATTERN = re.compile(r"[a-z]+")
@@ -63,9 +68,17 @@ def _siblings_of(*, entry: Doc, entries: tuple[Doc, ...]) -> tuple[Doc, ...]:
     )
 
 
+def _names_a_document(*, pattern: re.Pattern[str], sentence: str) -> bool:
+    """Whether the cue appears with something other than a pull request as its object."""
+    return any(
+        not check_is_about_a_pull_request(sentence=sentence, match=match)
+        for match in pattern.finditer(sentence)
+    )
+
+
 def _links_for_sentence(*, entry: Doc, sentence: str, siblings: tuple[Doc, ...]) -> list[Link]:
-    is_inverted = bool(SUPERSEDED_BY_PATTERN.search(sentence))
-    if not is_inverted and not SUPERSEDES_PATTERN.search(sentence):
+    is_inverted = _names_a_document(pattern=SUPERSEDED_BY_PATTERN, sentence=sentence)
+    if not is_inverted and not _names_a_document(pattern=SUPERSEDES_PATTERN, sentence=sentence):
         return []
     target = _best_sibling(sentence=sentence, siblings=siblings, own_title=entry.title)
     if target is None:
